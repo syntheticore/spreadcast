@@ -93,6 +93,7 @@ var serve = function(options) {
     socket.on('close', function() {
       _.each(rooms, function(room, name) {
         if(room.sender.id == sessionId) {
+          // Publisher went away -> Terminate stream
           delete rooms[name];
           _.each(room.receivers, function(receiver) {
             try {
@@ -104,7 +105,12 @@ var serve = function(options) {
           });
           return false;
         } else if(room.receivers[sessionId]) {
+          // Remove receiver and leecher entries
           delete room.receivers[sessionId];
+          delete room.sender.leechers[sessionId];
+          _.each(room.receivers, function(receiver) {
+            delete receiver.leechers[sessionId];
+          });
         }
       });
     });

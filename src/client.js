@@ -18,8 +18,14 @@ var Client = function(options) {
   var receiverPeers = {};
   var senderIceCandidateCache = [];
 
-  var wsUrl = location.origin.replace(/^http/, 'ws');
-  var socket = new WebSocket(wsUrl);
+  var wsUrl;
+  if(_.contains(location.origin, 'https')) {
+    wsUrl = location.origin.replace(/^https/, 'wss');
+  } else {
+    wsUrl = location.origin.replace(/^http/, 'ws');
+  }
+  var socket = Client.socket || new WebSocket(wsUrl);
+  Client.socket = socket;
 
   var send = function(data) {
     socket.send(JSON.stringify(data));

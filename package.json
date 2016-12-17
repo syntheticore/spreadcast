@@ -1,0 +1,31 @@
+{
+  "name": "spreadcast",
+  "version": "0.0.1",
+  "description": "Broadcast a WebRTC stream to many subscribers",
+  "main": "src/spreadcast.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Björn Breitgoff <syntheticore@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/syntheticore/spreadcast/issues"
+  },
+   "repository": {
+    "type": "git",
+    "url": "git://github.com/syntheticore/spreadcast.git"
+  },
+  "keywords": [
+    "webrtc",
+    "broadcast",
+    "stream",
+    "media server"
+  ],
+  "dependencies": {
+    "bufferutil": "^1.3.0",
+    "eakwell": "^0.2.4",
+    "utf-8-validate": "^2.0.0",
+    "webrtc-adapter": "^2.1.0",
+    "ws": "^1.1.1"
+  }
+}

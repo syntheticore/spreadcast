@@ -27,7 +27,6 @@ var Client = function(options) {
 
   socket.onopen = function(event) {
     console.log("Socket open");
-    send({test: "TEST"});
   };
 
   socket.onerror = function(error) {

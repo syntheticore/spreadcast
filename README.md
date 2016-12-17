@@ -9,35 +9,35 @@ Broadcast a WebRTC stream to many subscribers
 
 ## Usage
   
-  ### Node Server
+  ## Node Server
 
-    ```JavaScript
-    var Spreadcast = require('spreadcast');
+  ```JavaScript
+  var Spreadcast = require('spreadcast');
 
-    var server = require('http').createServer();
-    server.listen(PORT);
+  var server = require('http').createServer();
+  server.listen(PORT);
 
-    Spreadcast.serve({server: server});
-    ```
+  Spreadcast.serve({server: server});
+  ```
 
 
-  ### Browser Client
+  ## Browser Client
 
-    ```JavaScript
-    var Spreadcast = require('spreadcast');
+  ```JavaScript
+  var Spreadcast = require('spreadcast');
 
-    var container = document.getElementById('container');
+  var container = document.getElementById('container');
 
-    var publisher = new Spreadcast.Client({
-      container: container
-    });
-    publisher.publish('streamName');
+  var publisher = new Spreadcast.Client({
+    container: container
+  });
+  publisher.publish('streamName');
 
-    var receiver = new Spreadcast.Client({
-      container: container
-    });
-    receiver.receive('streamName');
-    ```
+  var receiver = new Spreadcast.Client({
+    container: container
+  });
+  receiver.receive('streamName');
+  ```
 
 ## License
 

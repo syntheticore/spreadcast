@@ -9,7 +9,7 @@ Broadcast a WebRTC stream to many subscribers
 
 ## Usage
   
-  ### Server
+  ### Node Server
 
     ```JavaScript
     var Spreadcast = require('spreadcast');
@@ -17,12 +17,15 @@ Broadcast a WebRTC stream to many subscribers
     var server = require('http').createServer();
     server.listen(PORT);
 
-    Spreadcast.serve(server);
+    Spreadcast.serve({server: server});
+    ```
 
 
-  ### Client
+  ### Browser Client
 
     ```JavaScript
+    var Spreadcast = require('spreadcast');
+
     var container = document.getElementById('container');
 
     var publisher = new Spreadcast.Client({
@@ -34,6 +37,7 @@ Broadcast a WebRTC stream to many subscribers
       container: container
     });
     receiver.receive('streamName');
+    ```
 
 ## License
 

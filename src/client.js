@@ -18,14 +18,25 @@ var Client = function(options) {
   var receiverPeers = {};
   var senderIceCandidateCache = [];
 
-  var wsUrl = location.origin.replace(/^http/, 'ws')
+  var wsUrl = location.origin.replace(/^http/, 'ws');
   var socket = new WebSocket(wsUrl);
 
   var send = function(data) {
     socket.send(JSON.stringify(data));
   };
 
-  socket.onopen = function(event) {};
+  socket.onopen = function(event) {
+    console.log("Socket open");
+    send({test: "TEST"});
+  };
+
+  socket.onerror = function(error) {
+    console.log('WebSocket Error ' + error);
+  };
+
+  socket.onclose = function(event) {
+    console.log('WebSocket was closed ' + event);
+  };
 
   socket.onmessage = function(event) {
     var data = JSON.parse(event.data);
@@ -44,6 +55,8 @@ var Client = function(options) {
           }
         };
         peer.addStream(localStream || remoteStream);
+        // var stream = localStream || remoteStream;
+        // stream.getTracks().forEach(track => peer.addTrack(track, stream));
         peer.setRemoteDescription(data.offer);
         peer.createAnswer().then(function(desc) {
           peer.setLocalDescription(desc);
@@ -83,17 +96,18 @@ var Client = function(options) {
     return video;
   };
 
-  var getMedia = function() {
-    return navigator.mediaDevices.getUserMedia({
+  var getMedia = function(constraints) {
+    return navigator.mediaDevices.getUserMedia(_.merge({
       audio: true,
       video: {
         width: 640,
         height: 480,
         frameRate: 30
-      }
-    })
+      }}, constraints || {})
+    )
     .then(function(stream) {
       var video = createVideoElement();
+      video.muted = true;
       video.srcObject = stream;
       localStream = stream;
     })
@@ -102,9 +116,9 @@ var Client = function(options) {
     });
   };
   
-  self.publish = function(name) {
+  self.publish = function(name, constraints) {
     roomName = name;
-    getMedia().then(function() {
+    getMedia(constraints).then(function() {
       send({
         type: 'openRoom',
         name: name
@@ -122,6 +136,12 @@ var Client = function(options) {
       remoteVideo.srcObject = e.stream;
       remoteStream = e.stream;
     };
+
+    // senderPeer.ontrack = function(e) {
+    //   remoteVideo = createVideoElement();
+    //   remoteVideo.srcObject = e.streams[0];
+    //   remoteStream = e.streams[0];
+    // };
 
     senderPeer.onicecandidate = function(e) {
       if(e.candidate) {

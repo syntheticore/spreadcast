@@ -18,21 +18,21 @@ var Client = function(options) {
   var receiverPeers = {};
   var senderIceCandidateCache = [];
 
-  var wsUrl;
-  if(_.contains(location.origin, 'https')) {
-    wsUrl = location.origin.replace(/^https/, 'wss');
-  } else {
-    wsUrl = location.origin.replace(/^http/, 'ws');
-  }
+  var wsUrl = location.origin.replace(/^http/, 'ws');
   var socket = Client.socket || new WebSocket(wsUrl);
-  Client.socket = socket;
+  // Client.socket = socket;
+
+  var sockReady = new Promise(function(ok, fail) {
+    socket.onopen = function(event) {
+      console.log("Socket open");
+      ok();
+    };
+  });
 
   var send = function(data) {
-    socket.send(JSON.stringify(data));
-  };
-
-  socket.onopen = function(event) {
-    console.log("Socket open");
+    sockReady.then(function() {
+      socket.send(JSON.stringify(data));
+    });
   };
 
   socket.onerror = function(error) {

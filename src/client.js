@@ -22,7 +22,6 @@ var Client = function(options) {
 
   var socket;
   var sockReady;
-  var sessionId;
 
   var openSocket = function() {
     socket = new WebSocket(wsUrl);
@@ -39,25 +38,15 @@ var Client = function(options) {
 
     socket.onclose = function(event) {
       console.log('WebSocket was closed', event);
-      _.defer(openSocket, 1000);
+      _.defer(function() {
+        openSocket();
+        if(senderPeer) sockReady.then(reconnect);
+      }, 1000);
     };
 
     socket.onmessage = function(event) {
       var data = JSON.parse(event.data);
       switch(data.type) {
-        case 'sessionId':
-          if(sessionId) {
-            console.log("Requesting session id " + sessionId);
-            send({
-              type: 'sessionId',
-              id: sessionId
-            });
-          } else {
-            console.log("Setting session id " + data.id);
-            sessionId = data.id;
-          }
-          break;
-
         case 'offer':
           console.log("Got offer from receiver " + data.fromReceiver);
           var peer = new RTCPeerConnection(null);
@@ -104,8 +93,7 @@ var Client = function(options) {
           break;
 
         case 'reconnect':
-          stop();
-          self.receive(roomName);
+          reconnect();
           break;
       }
     };
@@ -163,6 +151,11 @@ var Client = function(options) {
     }
     if(remoteVideo) remoteVideo.parentElement.removeChild(remoteVideo);
     if(localVideo) localVideo.parentElement.removeChild(localVideo);
+  };
+
+  var reconnect = function() {
+    stop();
+    self.receive(roomName);
   };
   
   self.publish = function(name, constraints) {
@@ -229,6 +222,7 @@ var Client = function(options) {
       });
     }
     stop();
+    roomName = null;
   };
 };
 

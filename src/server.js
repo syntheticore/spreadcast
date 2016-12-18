@@ -28,20 +28,11 @@ var serve = function(options) {
       socket.ping(null, null, true);
     }, pingInterval);
 
-    send(socket, {
-      type: 'sessionId',
-      id: sessionId
-    });
-
     socket.on('message', function incoming(msg) {
       var data = JSON.parse(msg);
       console.log(data);
 
       switch(data.type) {
-        case 'sessionId':
-          sessionId = data.id;
-          break;
-
         case 'openRoom':
           var room = {
             name: data.name,

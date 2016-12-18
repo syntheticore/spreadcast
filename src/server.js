@@ -5,6 +5,7 @@ var serve = function(options) {
 
   var rooms = {};
   var maxLeechers = 1;
+  var pingInterval = 10 * 1000;
 
   var closeRoom = function(roomName) {
     var room = rooms[roomName];
@@ -22,6 +23,10 @@ var serve = function(options) {
 
   wss.on('connection', function connection(socket) {
     var sessionId = _.uuid();
+
+    var ping = setInterval(function() {
+      socket.ping(null, null, true);
+    }, pingInterval);
 
     socket.on('message', function incoming(msg) {
       var data = JSON.parse(msg);
@@ -109,6 +114,7 @@ var serve = function(options) {
     });
 
     socket.on('close', function() {
+      clearInterval(ping);
       _.each(rooms, function(room, name) {
         if(room.sender.id == sessionId) {
           // Publisher went away -> Terminate stream

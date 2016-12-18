@@ -1,6 +1,6 @@
 var _ = require('eakwell');
 
-var Client = function(options) {
+var Client = function(container) {
   var self = this;
 
   _.each(require('webrtc-adapter').browserShim, function(shim) {
@@ -113,7 +113,7 @@ var Client = function(options) {
   var createVideoElement = function() {
     var video = document.createElement('video');
     video.autoplay = true;
-    options.container.appendChild(video);
+    container.appendChild(video);
     return video;
   };
 
@@ -127,7 +127,7 @@ var Client = function(options) {
       }}, constraints || {})
     )
     .then(function(stream) {
-      localVideo = createVideoElement();
+      localVideo = localVideo || createVideoElement();
       localVideo.muted = true;
       localVideo.srcObject = stream;
       localStream = stream;
@@ -137,7 +137,7 @@ var Client = function(options) {
     });
   };
 
-  var stop = function() {
+  var terminate = function() {
     if(senderPeer) senderPeer.close();
     senderPeer = null;
     senderId = null;
@@ -152,13 +152,19 @@ var Client = function(options) {
       });
       localStream = null;
     }
-    if(remoteVideo) remoteVideo.parentElement.removeChild(remoteVideo);
-    if(localVideo) localVideo.parentElement.removeChild(localVideo);
   };
 
   var reconnect = function() {
-    stop();
+    terminate();
     self.receive(roomName);
+  };
+
+  var stop = function() {
+    terminate();
+    if(remoteVideo) remoteVideo.parentElement.removeChild(remoteVideo);
+    if(localVideo) localVideo.parentElement.removeChild(localVideo);
+    localVideo = null;
+    remoteVideo = null;
   };
   
   self.publish = function(name, constraints) {
@@ -177,7 +183,7 @@ var Client = function(options) {
     senderPeer = new RTCPeerConnection(null);
 
     senderPeer.onaddstream = function(e) {
-      remoteVideo = createVideoElement();
+      remoteVideo = remoteVideo || createVideoElement();
       remoteVideo.srcObject = e.stream;
       remoteStream = e.stream;
     };

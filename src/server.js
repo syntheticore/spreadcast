@@ -5,7 +5,7 @@ var serve = function(options) {
 
   var rooms = {};
   var pingInterval = 10 * 1000;
-  var maxLeechers = options.maxLeechers || 2;
+  var maxLeechers = options.maxLeechers || 3;
 
   var closeRoom = function(roomName) {
     var room = rooms[roomName];

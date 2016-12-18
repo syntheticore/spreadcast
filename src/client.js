@@ -21,11 +21,12 @@ var Client = function(container) {
   var senderIceCandidateCache = [];
 
   var socket;
-  var sockReady;
+  var socketReady;
+  var shutdown = false;
 
   var openSocket = function() {
     socket = new WebSocket(wsUrl);
-    sockReady = new Promise(function(ok, fail) {
+    socketReady = new Promise(function(ok, fail) {
       socket.onopen = function(event) {
         console.log("Socket open");
         ok();
@@ -38,9 +39,11 @@ var Client = function(container) {
 
     socket.onclose = function(event) {
       console.log('WebSocket was closed', event);
+      if(shutdown) return;
+      // Reconnect socket and stream
       _.defer(function() {
         openSocket();
-        if(senderPeer) sockReady.then(reconnect);
+        if(senderPeer) socketReady.then(reconnect);
       }, 1000);
     };
 
@@ -104,7 +107,7 @@ var Client = function(container) {
   openSocket();
 
   var send = function(data) {
-    sockReady.then(function() {
+    socketReady.then(function() {
       data._spreadcast = true;
       socket.send(JSON.stringify(data));
     });
@@ -165,6 +168,8 @@ var Client = function(container) {
     if(localVideo) localVideo.parentElement.removeChild(localVideo);
     localVideo = null;
     remoteVideo = null;
+    shutdown = true;
+    socket.close();
   };
   
   self.publish = function(name, constraints) {

@@ -4,8 +4,8 @@ var serve = function(options) {
   var wss = options.socketServer || new (require('ws').Server({server: options.server}));
 
   var rooms = {};
-  var maxLeechers = 1;
   var pingInterval = 10 * 1000;
+  var maxLeechers = options.maxLeechers || 1;
 
   var closeRoom = function(roomName) {
     var room = rooms[roomName];
@@ -28,11 +28,20 @@ var serve = function(options) {
       socket.ping(null, null, true);
     }, pingInterval);
 
+    send(socket, {
+      type: 'sessionId',
+      id: sessionId
+    });
+
     socket.on('message', function incoming(msg) {
       var data = JSON.parse(msg);
       console.log(data);
 
       switch(data.type) {
+        case 'sessionId':
+          sessionId = data.id;
+          break;
+
         case 'openRoom':
           var room = {
             name: data.name,
@@ -57,7 +66,7 @@ var serve = function(options) {
             sock = room.sender.socket;
             depth = 1;
           } else {
-            // Find uncongested receiver to use as a proxy
+            // Find uncongested receiver to use as a relay
             var freeReceivers = _.select(room.receivers, function(receiver) {
               return _.size(receiver.leechers) < maxLeechers;
             });

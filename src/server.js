@@ -4,7 +4,21 @@ var serve = function(options) {
   var wss = options.socketServer || new (require('ws').Server({server: options.server}));
 
   var rooms = {};
-  var maxLeechers = 2;
+  var maxLeechers = 1;
+
+  var closeRoom = function(roomName) {
+    var room = rooms[roomName];
+    if(!room) return;
+    delete rooms[roomName];
+    _.each(room.receivers, function(receiver) {
+      try {
+        send(receiver.socket, {
+          type: 'stop',
+          roomName: roomName
+        });
+      } catch(e) {}
+    });
+  };
 
   wss.on('connection', function connection(socket) {
     var sessionId = _.uuid();
@@ -62,6 +76,10 @@ var serve = function(options) {
           });
           break;
 
+        case 'closeRoom':
+          closeRoom(data.roomName);
+          break;
+
         case 'answer':
           var room = rooms[data.roomName];
           if(!room) return;
@@ -94,22 +112,22 @@ var serve = function(options) {
       _.each(rooms, function(room, name) {
         if(room.sender.id == sessionId) {
           // Publisher went away -> Terminate stream
-          delete rooms[name];
-          _.each(room.receivers, function(receiver) {
-            try {
-              send(receiver.socket, {
-                type: 'stop',
-                roomName: name
-              });
-            } catch(e) {}
-          });
+          closeRoom(name);
           return false;
         } else if(room.receivers[sessionId]) {
-          // Remove receiver and leecher entries
+          var receiver = room.receivers[sessionId];
           delete room.receivers[sessionId];
+          // Remove leecher entries
           delete room.sender.leechers[sessionId];
           _.each(room.receivers, function(receiver) {
             delete receiver.leechers[sessionId];
+          });
+          // Send reconnect signal to own leechers
+          _.each(receiver.leechers, function(leecher) {
+            var sock = room.receivers[leecher.id].socket;
+            send(sock, {
+              type: 'reconnect'
+            });
           });
         }
       });

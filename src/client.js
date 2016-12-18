@@ -11,6 +11,7 @@ var Client = function(options) {
 
   var localStream;
   var remoteStream;
+  var localVideo;
   var remoteVideo;
 
   var senderPeer;
@@ -88,8 +89,12 @@ var Client = function(options) {
         break;
 
       case 'stop':
-        senderPeer.close();
-        remoteVideo.parentElement.removeChild(remoteVideo);
+        stop();
+        break;
+
+      case 'reconnect':
+        stop();
+        self.receive(roomName);
         break;
     }
   };
@@ -111,14 +116,27 @@ var Client = function(options) {
       }}, constraints || {})
     )
     .then(function(stream) {
-      var video = createVideoElement();
-      video.muted = true;
-      video.srcObject = stream;
+      localVideo = createVideoElement();
+      localVideo.muted = true;
+      localVideo.srcObject = stream;
       localStream = stream;
     })
     .catch(function(e) {
       alert('getUserMedia() error: ' + e.name);
     });
+  };
+
+  var stop = function() {
+    if(senderPeer) senderPeer.close();
+    senderPeer = null;
+    senderId = null;
+    _.each(receiverPeers, function(peer) {
+      peer.close();
+    });
+    receiverPeers = {};
+    if(localStream) localStream.getTracks().forEach(track => track.stop());
+    if(remoteVideo) remoteVideo.parentElement.removeChild(remoteVideo);
+    if(localVideo) localVideo.parentElement.removeChild(localVideo);
   };
   
   self.publish = function(name, constraints) {
@@ -174,6 +192,17 @@ var Client = function(options) {
         offer: desc
       });
     });
+  };
+
+  self.stop = function() {
+    // Close the entire room if we are the publisher
+    if(!senderPeer) {
+      send({
+        type: 'closeRoom',
+        roomName: roomName
+      });
+    }
+    stop();
   };
 };
 

@@ -46,6 +46,8 @@ var Client = function(options) {
 
     socket.onmessage = function(event) {
       var data = JSON.parse(event.data);
+      if(!data._spreadcast) return;
+
       switch(data.type) {
         case 'offer':
           console.log("Got offer from receiver " + data.fromReceiver);
@@ -103,6 +105,7 @@ var Client = function(options) {
 
   var send = function(data) {
     sockReady.then(function() {
+      data._spreadcast = true;
       socket.send(JSON.stringify(data));
     });
   };

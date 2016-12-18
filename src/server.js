@@ -5,7 +5,7 @@ var serve = function(options) {
 
   var rooms = {};
   var pingInterval = 10 * 1000;
-  var maxLeechers = options.maxLeechers || 1;
+  var maxLeechers = options.maxLeechers || 2;
 
   var closeRoom = function(roomName) {
     var room = rooms[roomName];
@@ -30,6 +30,8 @@ var serve = function(options) {
 
     socket.on('message', function incoming(msg) {
       var data = JSON.parse(msg);
+      if(!data._spreadcast) return;
+
       console.log(data);
 
       switch(data.type) {
@@ -141,6 +143,7 @@ var serve = function(options) {
   });
 
   var send = function(socket, data) {
+    data._spreadcast = true;
     socket.send(JSON.stringify(data));
   };
 };

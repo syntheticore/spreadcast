@@ -12,12 +12,10 @@ var serve = function(options) {
     if(!room) return;
     delete rooms[roomName];
     _.each(room.receivers, function(receiver) {
-      try {
-        send(receiver.socket, {
-          type: 'stop',
-          roomName: roomName
-        });
-      } catch(e) {}
+      send(receiver.socket, {
+        type: 'stop',
+        roomName: roomName
+      });
     });
   };
 
@@ -143,8 +141,10 @@ var serve = function(options) {
   });
 
   var send = function(socket, data) {
-    data._spreadcast = true;
-    socket.send(JSON.stringify(data));
+    try {
+      data._spreadcast = true;
+      socket.send(JSON.stringify(data));
+    } catch(e) {}
   };
 };
 

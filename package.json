@@ -1,6 +1,6 @@
 {
   "name": "spreadcast",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Broadcast a WebRTC stream to many subscribers",
   "main": "src/spreadcast.js",
   "scripts": {

@@ -170,6 +170,7 @@ var Client = function(container) {
     remoteVideo = null;
     shutdown = true;
     socket.close();
+    if(self.onStop) self.onStop();
   };
   
   self.publish = function(name, constraints) {

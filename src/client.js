@@ -1,11 +1,10 @@
+var freeice = require('freeice');
 var _ = require('eakwell');
+
+var peerConfig = {iceServers: freeice()};
 
 var Client = function(container) {
   var self = this;
-
-  _.each(require('webrtc-adapter').browserShim, function(shim) {
-    shim();
-  });
 
   var wsUrl = location.origin.replace(/^http/, 'ws');
   var roomName;
@@ -54,7 +53,7 @@ var Client = function(container) {
       switch(data.type) {
         case 'offer':
           console.log("Got offer from receiver " + data.fromReceiver);
-          var peer = new RTCPeerConnection(null);
+          var peer = new RTCPeerConnection(peerConfig);
           peer.onicecandidate = function(e) {
             if(e.candidate) {
               send({
@@ -186,7 +185,7 @@ var Client = function(container) {
   self.receive = function(name) {
     roomName = name;
 
-    senderPeer = new RTCPeerConnection(null);
+    senderPeer = new RTCPeerConnection(peerConfig);
 
     senderPeer.onaddstream = function(e) {
       remoteVideo = remoteVideo || createVideoElement();

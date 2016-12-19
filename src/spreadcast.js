@@ -6,6 +6,9 @@ var Spreadcast = {
 };
 
 if(typeof window !== 'undefined') {
+  _.each(require('webrtc-adapter').browserShim, function(shim) {
+    shim();
+  });
   window.Spreadcast = Spreadcast;
 }
 

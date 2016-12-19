@@ -4,7 +4,8 @@
   "description": "Broadcast a WebRTC stream to many subscribers",
   "main": "src/spreadcast.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "mkdir -p build; browserify src/spreadcast.js > build/spreadcast.min.js"
   },
   "author": "Björn Breitgoff <syntheticore@gmail.com>",
   "license": "MIT",
@@ -27,5 +28,8 @@
     "utf-8-validate": "^2.0.0",
     "webrtc-adapter": "^2.1.0",
     "ws": "^1.1.1"
+  },
+  "devDependencies": {
+    "browserify": "^13.1.1"
   }
 }

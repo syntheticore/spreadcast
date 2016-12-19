@@ -5,4 +5,8 @@ var Spreadcast = {
   serve: require('./server.js')
 };
 
+if(typeof window !== 'undefined') {
+  window.Spreadcast = Spreadcast;
+}
+
 module.exports = Spreadcast;

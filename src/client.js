@@ -168,7 +168,8 @@ var Client = function(container) {
     localVideo = null;
     remoteVideo = null;
     shutdown = true;
-    socket.close();
+    if(socket) socket.close();
+    socket = null;
     if(self.onStop) self.onStop();
   };
   
@@ -239,5 +240,12 @@ var Client = function(container) {
     roomName = null;
   };
 };
+
+if(typeof window !== 'undefined') {
+  _.each(require('webrtc-adapter').browserShim, function(shim) {
+    shim();
+  });
+  window.Spreadcast = Client;
+}
 
 module.exports = Client;

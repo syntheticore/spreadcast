@@ -5,7 +5,8 @@
   "main": "src/spreadcast.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "mkdir -p build; browserify src/spreadcast.js > build/spreadcast.min.js"
+    "build": "mkdirp dist && browserify src/client.js | uglifyjs -mc warnings=false > dist/spreadcast.min.js",
+    "prepublish": "npm run build"
   },
   "author": "Björn Breitgoff <syntheticore@gmail.com>",
   "license": "MIT",
@@ -31,6 +32,8 @@
     "ws": "^1.1.1"
   },
   "devDependencies": {
-    "browserify": "^13.1.1"
+    "browserify": "^13.1.1",
+    "mkdirp": "^0.5.1",
+    "uglify-js": "^2.7.5"
   }
 }

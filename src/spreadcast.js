@@ -1,10 +1,11 @@
 var _ = require('eakwell');
+var websocket = require('ws');
 
 var Spreadcast = {
   Client: require('./client.js'),
 
   serve: function(options) {
-    var wss = options.socketServer || new (require('ws').Server({server: options.server}));
+    var wss = options.socketServer || new websocket.Server({server: options.server});
 
     var rooms = {};
     var pingInterval = 10 * 1000;
@@ -26,7 +27,7 @@ var Spreadcast = {
       var sessionId = _.uuid();
 
       var ping = setInterval(function() {
-        socket.ping(null, null, true);
+        if(socket.ping) socket.ping(null, null, true);
       }, pingInterval);
 
       socket.on('message', function incoming(msg) {

@@ -23,14 +23,14 @@ var Spreadcast = {
       });
     };
 
-    wss.on('connection', function connection(socket) {
+    wss.on('connection', function(socket) {
       var sessionId = _.uuid();
 
       var ping = setInterval(function() {
         if(socket.ping) socket.ping(null, null, true);
       }, pingInterval);
 
-      socket.on('message', function incoming(msg) {
+      socket.on('message', function(msg) {
         var data = JSON.parse(msg);
         if(!data._spreadcast) return;
 

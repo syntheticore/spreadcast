@@ -1,8 +1,6 @@
 var freeice = require('freeice');
 var _ = require('eakwell');
 
-var peerConfig = {iceServers: freeice()};
-
 var Client = function(container) {
   var self = this;
 
@@ -53,7 +51,7 @@ var Client = function(container) {
       switch(data.type) {
         case 'offer':
           console.log("Got offer from receiver " + data.fromReceiver);
-          var peer = new RTCPeerConnection(peerConfig);
+          var peer = getPeerConnection('publisher');
           peer.onicecandidate = function(e) {
             if(e.candidate) {
               send({
@@ -108,7 +106,7 @@ var Client = function(container) {
   var send = function(data) {
     socketReady.then(function() {
       data._spreadcast = true;
-      socket.send(JSON.stringify(data));
+      if(socket) socket.send(JSON.stringify(data));
     });
   };
 
@@ -137,6 +135,61 @@ var Client = function(container) {
     .catch(function(e) {
       alert('getUserMedia() error: ' + e.name);
     });
+  };
+
+  var getPeerConnection = function(type) {
+    var peer = new RTCPeerConnection({iceServers: freeice()});
+    var value = function(str) {
+      if(!str) return 0;
+      if(!isNaN(str)) return Number(str);
+      if(str == 'true') return true;
+      if(str == 'false') return false;
+      return str;
+    };
+    var iv = setInterval(function() {
+      getStats(peer).then(function(stats) {
+        // console.log(stats);
+        var score = 0;
+        _.each(stats, function(stat) {
+          if(type == 'receiver') {
+            // Receiver
+            if(stat.type == 'ssrc') {
+              if(stat.mediaType == 'video') {
+                score -= value(stat.packetsLost) +
+                         value(stat.googTargetDelayMs) +
+                         value(stat.googCurrentDelayMs) +
+                         value(stat.googDecodeMs) +
+                         value(stat.googJitterBufferMs) +
+                         value(stat.googRenderDelayMs);
+              } else if(stat.mediaType == 'audio') {
+                score -= value(stat.packetsLost) +
+                         value(stat.googCurrentDelayMs) +
+                         value(stat.googJitterReceived) +
+                         value(stat.googJitterBufferMs);
+              }
+            }
+          } else {
+            // Publisher
+            if(stat.type == 'ssrc' && stat.mediaType == 'video') {
+              score -= value(stat.packetsLost) +
+                       value(stat.googAvgEncodeMs) +
+                       value(stat.googRtt) +
+                       value(stat.googEncodeUsagePercent);
+              var limitedResolution = stat.googBandwidthLimitedResolution || stat.googCpuLimitedResolution;
+            } else if(stat.type == 'VideoBwe') {
+              score += value(stat.googTransmitBitrate) +
+                       value(stat.googReTransmitBitrate) +
+                       value(stat.googAvailableSendBandwidth);
+            }
+          }
+        });
+        console.log(type, score);
+      });
+    }, 1000);
+    peer.onclose = function() {
+      clearInterval(iv);
+    };
+    return peer;
   };
 
   var terminate = function() {
@@ -186,7 +239,7 @@ var Client = function(container) {
   self.receive = function(name) {
     roomName = name;
 
-    senderPeer = new RTCPeerConnection(peerConfig);
+    senderPeer = getPeerConnection('receiver');
 
     senderPeer.onaddstream = function(e) {
       remoteVideo = remoteVideo || createVideoElement();
@@ -240,6 +293,28 @@ var Client = function(container) {
     roomName = null;
   };
 };
+
+function getStats(pc, selector) {
+  if(navigator.mozGetUserMedia) {
+    return pc.getStats(selector);
+  }
+  return new Promise(function(resolve, reject) {
+    pc.getStats(function(response) {
+      var standardReport = {};
+      response.result().forEach(function(report) {
+        var standardStats = {
+          id: report.id,
+          type: report.type
+        };
+        report.names().forEach(function(name) {
+          standardStats[name] = report.stat(name);
+        });
+        standardReport[standardStats.id] = standardStats;
+      });
+      resolve(standardReport);
+    }, selector, reject);
+  });
+}
 
 if(typeof window !== 'undefined') {
   _.each(require('webrtc-adapter').browserShim, function(shim) {

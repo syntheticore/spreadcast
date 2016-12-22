@@ -147,35 +147,44 @@ var Client = function(container) {
       return str;
     };
     var iv = setInterval(function() {
-      getStats(peer).then(function(stats) {
+      getStats(peer, null).then(function(stats) {
         // console.log(stats);
         var score = 0;
-        _.each(stats, function(stat) {
+        stats.forEach(function(stat) {
+          // console.log(stat);
           if(type == 'receiver') {
             // Receiver
-            if(stat.type == 'ssrc') {
+            if(stat.type == 'ssrc' || stat.type == 'inboundrtp') {
+              var received = value(stat.packetsReceived);
               if(stat.mediaType == 'video') {
-                score -= value(stat.packetsLost) +
+                score -= value(stat.packetsLost) / received +
                          value(stat.googTargetDelayMs) +
                          value(stat.googCurrentDelayMs) +
                          value(stat.googDecodeMs) +
                          value(stat.googJitterBufferMs) +
-                         value(stat.googRenderDelayMs);
+                         value(stat.googRenderDelayMs) +
+                         value(stat.framerateStdDev) +
+                         value(stat.bitrateStdDev) + 
+                         value(stat.jitter);
               } else if(stat.mediaType == 'audio') {
-                score -= value(stat.packetsLost) +
+                score -= value(stat.packetsLost) / received +
                          value(stat.googCurrentDelayMs) +
                          value(stat.googJitterReceived) +
-                         value(stat.googJitterBufferMs);
+                         value(stat.googJitterBufferMs) +
+                         value(stat.jitter);
               }
             }
           } else {
             // Publisher
-            if(stat.type == 'ssrc' && stat.mediaType == 'video') {
-              score -= value(stat.packetsLost) +
+            if((stat.type == 'ssrc' || stat.type == 'outboundrtp') && stat.mediaType == 'video') {
+              var sent = value(stat.packetsSent);
+              score -= value(stat.packetsLost) / sent +
                        value(stat.googAvgEncodeMs) +
                        value(stat.googRtt) +
-                       value(stat.googEncodeUsagePercent);
-              var limitedResolution = stat.googBandwidthLimitedResolution || stat.googCpuLimitedResolution;
+                       value(stat.googEncodeUsagePercent) + 
+                       value(stat.droppedFrames) / sent + 
+                       value(stat.framerateStdDev);
+              var limitedResolution = value(stat.googBandwidthLimitedResolution) || value(stat.googCpuLimitedResolution);
             } else if(stat.type == 'VideoBwe') {
               score += value(stat.googTransmitBitrate) +
                        value(stat.googReTransmitBitrate) +

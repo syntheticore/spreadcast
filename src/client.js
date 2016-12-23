@@ -20,6 +20,7 @@ var Client = function(container) {
   var socket;
   var socketReady;
   var shutdown = false;
+  var receiveCb;
 
   var openSocket = function() {
     socket = new WebSocket(wsUrl);
@@ -82,6 +83,7 @@ var Client = function(container) {
           senderId = data.fromSender;
           console.log("Got answer from sender " + senderId);
           senderPeer.setRemoteDescription(data.answer);
+          receiveCb && receiveCb()
           break;
         
         case 'iceCandidate':
@@ -94,8 +96,23 @@ var Client = function(container) {
           stop();
           break;
 
+        case 'dropReceiver':
+          var peer = receiverPeers[data.receiverId];
+          if(peer) {
+            peer.close();
+            delete receiverPeers[data.receiverId];
+          }
+          break;
+
         case 'reconnect':
           reconnect();
+          break;
+
+        case 'error':
+          if(data.msg == 'NoSuchRoom') {
+            stop();
+            receiveCb && receiveCb('Room doesn\'t exist')
+          }
           break;
       }
     };
@@ -146,58 +163,70 @@ var Client = function(container) {
       if(str == 'false') return false;
       return str;
     };
+    peer.onsignalingstatechange = function() {
+      if(peer.signalingState === 'closed') {
+        clearInterval(iv);
+      }
+    };
     var iv = setInterval(function() {
       getStats(peer, null).then(function(stats) {
         // console.log(stats);
         var score = 0;
-        stats.forEach(function(stat) {
-          // console.log(stat);
+        _.each(stats, function(stat) {
           if(type == 'receiver') {
             // Receiver
             if(stat.type == 'ssrc' || stat.type == 'inboundrtp') {
               var received = value(stat.packetsReceived);
               if(stat.mediaType == 'video') {
-                score -= value(stat.packetsLost) / received +
-                         value(stat.googTargetDelayMs) +
+                score -= value(stat.googTargetDelayMs) +
+                         // value(stat.packetsLost) / received +
                          value(stat.googCurrentDelayMs) +
                          value(stat.googDecodeMs) +
                          value(stat.googJitterBufferMs) +
                          value(stat.googRenderDelayMs) +
                          value(stat.framerateStdDev) +
                          value(stat.bitrateStdDev) + 
-                         value(stat.jitter);
+                         value(stat.jitter) - 
+                         value(stat.packetsReceivedPerSecond) -
+                         value(stat.bitsReceivedPerSecond) -
+                         value(stat.googFrameRateReceived) -
+                         value(stat.googFrameWidthReceived);
               } else if(stat.mediaType == 'audio') {
-                score -= value(stat.packetsLost) / received +
-                         value(stat.googCurrentDelayMs) +
+                score -= value(stat.googCurrentDelayMs) +
+                         // value(stat.packetsLost) / received +
                          value(stat.googJitterReceived) +
                          value(stat.googJitterBufferMs) +
-                         value(stat.jitter);
+                         value(stat.jitter) -
+                         value(stat.packetsReceivedPerSecond) -
+                         value(stat.bitsReceivedPerSecond);
               }
             }
           } else {
             // Publisher
             if((stat.type == 'ssrc' || stat.type == 'outboundrtp') && stat.mediaType == 'video') {
               var sent = value(stat.packetsSent);
-              score -= value(stat.packetsLost) / sent +
-                       value(stat.googAvgEncodeMs) +
+              score -= value(stat.googAvgEncodeMs) +
+                       value(stat.packetsLost) +
                        value(stat.googRtt) +
                        value(stat.googEncodeUsagePercent) + 
-                       value(stat.droppedFrames) / sent + 
-                       value(stat.framerateStdDev);
+                       value(stat.droppedFrames) + 
+                       value(stat.framerateStdDev) -
+                       value(stat.packetsSentPerSecond) -
+                       value(stat.bitsSentPerSecond) -
+                       value(stat.googFrameRateSent) -
+                       value(stat.googFrameWidthSent);
               var limitedResolution = value(stat.googBandwidthLimitedResolution) || value(stat.googCpuLimitedResolution);
             } else if(stat.type == 'VideoBwe') {
               score += value(stat.googTransmitBitrate) +
                        value(stat.googReTransmitBitrate) +
-                       value(stat.googAvailableSendBandwidth);
+                       value(stat.googAvailableSendBandwidth) +
+                       value(stat.googActualEncBitrate);
             }
           }
         });
         console.log(type, score);
       });
     }, 1000);
-    peer.onclose = function() {
-      clearInterval(iv);
-    };
     return peer;
   };
 
@@ -245,8 +274,9 @@ var Client = function(container) {
     });
   };
 
-  self.receive = function(name) {
+  self.receive = function(name, cb) {
     roomName = name;
+    receiveCb = cb;
 
     senderPeer = getPeerConnection('receiver');
 

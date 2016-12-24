@@ -160,6 +160,7 @@ var Client = function(container) {
 
   var getPeerConnection = function(type) {
     var peer = new RTCPeerConnection({iceServers: freeice()});
+    return peer;
     var value = function(str) {
       if(!str) return 0;
       if(!isNaN(str)) return Number(str);

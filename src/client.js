@@ -1,8 +1,6 @@
 var freeice = require('freeice');
 var _ = require('eakwell');
 
-var peerConfig = {iceServers: freeice()};
-
 var Client = function(container) {
   var self = this;
 
@@ -22,11 +20,13 @@ var Client = function(container) {
   var socket;
   var socketReady;
   var shutdown = false;
+  var receiveCb;
+  var publishCb;
 
   var openSocket = function() {
     socket = new WebSocket(wsUrl);
     socketReady = new Promise(function(ok, fail) {
-      socket.onopen = function(event) {
+      socket.onopen = function() {
         console.log("Socket open");
         ok();
       };
@@ -36,8 +36,8 @@ var Client = function(container) {
       console.log('WebSocket Error', error);
     };
 
-    socket.onclose = function(event) {
-      console.log('WebSocket was closed', event);
+    socket.onclose = function() {
+      console.log('WebSocket was closed');
       if(shutdown) return;
       // Reconnect socket and stream
       _.defer(function() {
@@ -51,9 +51,13 @@ var Client = function(container) {
       if(!data._spreadcast) return;
 
       switch(data.type) {
+        case 'roomCreated':
+          publishCb && publishCb();
+          break;
+
         case 'offer':
           console.log("Got offer from receiver " + data.fromReceiver);
-          var peer = new RTCPeerConnection(peerConfig);
+          var peer = getPeerConnection('publisher');
           peer.onicecandidate = function(e) {
             if(e.candidate) {
               send({
@@ -84,6 +88,7 @@ var Client = function(container) {
           senderId = data.fromSender;
           console.log("Got answer from sender " + senderId);
           senderPeer.setRemoteDescription(data.answer);
+          receiveCb && receiveCb();
           break;
         
         case 'iceCandidate':
@@ -96,8 +101,26 @@ var Client = function(container) {
           stop();
           break;
 
+        case 'dropReceiver':
+          var peer = receiverPeers[data.receiverId];
+          if(peer) {
+            peer.close();
+            delete receiverPeers[data.receiverId];
+          }
+          break;
+
         case 'reconnect':
           reconnect();
+          break;
+
+        case 'error':
+          if(data.msg == 'NoSuchRoom') {
+            stop();
+            receiveCb && receiveCb('Room doesn\'t exist');
+          } else if(data.msg == 'RoomNameTaken') {
+            stop();
+            publishCb && publishCb('Room name is already taken');
+          }
           break;
       }
     };
@@ -108,7 +131,7 @@ var Client = function(container) {
   var send = function(data) {
     socketReady.then(function() {
       data._spreadcast = true;
-      socket.send(JSON.stringify(data));
+      if(socket) socket.send(JSON.stringify(data));
     });
   };
 
@@ -127,16 +150,88 @@ var Client = function(container) {
         height: 480,
         frameRate: 30
       }}, constraints || {})
-    )
-    .then(function(stream) {
+    ).then(function(stream) {
       localVideo = localVideo || createVideoElement();
       localVideo.muted = true;
       localVideo.srcObject = stream;
       localStream = stream;
-    })
-    .catch(function(e) {
-      alert('getUserMedia() error: ' + e.name);
     });
+  };
+
+  var getPeerConnection = function(type) {
+    var peer = new RTCPeerConnection({iceServers: freeice()});
+    var value = function(str) {
+      if(!str) return 0;
+      if(!isNaN(str)) return Number(str);
+      if(str == 'true') return true;
+      if(str == 'false') return false;
+      return str;
+    };
+    peer.onsignalingstatechange = function() {
+      if(peer.signalingState === 'closed') {
+        clearInterval(iv);
+      }
+    };
+    var iv = setInterval(function() {
+      getStats(peer, null).then(function(stats) {
+        // console.log(stats);
+        var score = 0;
+        _.each(stats, function(stat) {
+          if(type == 'receiver') {
+            // Receiver
+            if(stat.type == 'ssrc' || stat.type == 'inboundrtp') {
+              var received = value(stat.packetsReceived);
+              if(stat.mediaType == 'video') {
+                score -= value(stat.googTargetDelayMs) +
+                         // value(stat.packetsLost) / received +
+                         value(stat.googCurrentDelayMs) +
+                         value(stat.googDecodeMs) +
+                         value(stat.googJitterBufferMs) +
+                         value(stat.googRenderDelayMs) +
+                         value(stat.framerateStdDev) +
+                         value(stat.bitrateStdDev) + 
+                         value(stat.jitter) - 
+                         value(stat.packetsReceivedPerSecond) -
+                         value(stat.bitsReceivedPerSecond) -
+                         value(stat.googFrameRateReceived) -
+                         value(stat.googFrameWidthReceived);
+              } else if(stat.mediaType == 'audio') {
+                score -= value(stat.googCurrentDelayMs) +
+                         // value(stat.packetsLost) / received +
+                         value(stat.googJitterReceived) +
+                         value(stat.googJitterBufferMs) +
+                         value(stat.jitter) -
+                         value(stat.packetsReceivedPerSecond) -
+                         value(stat.bitsReceivedPerSecond);
+              }
+            }
+          } else {
+            // Publisher
+            if((stat.type == 'ssrc' || stat.type == 'outboundrtp') && stat.mediaType == 'video') {
+              var sent = value(stat.packetsSent);
+              score -= value(stat.googAvgEncodeMs) +
+                       value(stat.packetsLost) +
+                       value(stat.googRtt) +
+                       value(stat.googEncodeUsagePercent) + 
+                       value(stat.droppedFrames) + 
+                       value(stat.framerateStdDev) -
+                       value(stat.packetsSentPerSecond) -
+                       value(stat.bitsSentPerSecond) -
+                       value(stat.googFrameRateSent) -
+                       value(stat.googFrameWidthSent);
+              var limitedResolution = value(stat.googBandwidthLimitedResolution) || value(stat.googCpuLimitedResolution);
+            } else if(stat.type == 'VideoBwe') {
+              score += value(stat.googTransmitBitrate) +
+                       value(stat.googReTransmitBitrate) +
+                       value(stat.googAvailableSendBandwidth) +
+                       value(stat.googActualEncBitrate);
+            }
+          }
+        });
+        console.log(type, score);
+      });
+    }, 1000);
+    return peer;
   };
 
   var terminate = function() {
@@ -173,20 +268,24 @@ var Client = function(container) {
     if(self.onStop) self.onStop();
   };
   
-  self.publish = function(name, constraints) {
+  self.publish = function(name, constraints, cb) {
     roomName = name;
+    publishCb = cb;
     getMedia(constraints).then(function() {
       send({
         type: 'openRoom',
         name: name
       });
+    }).catch(function() {
+      publishCb && publishCb('Could not initialize video stream');
     });
   };
 
-  self.receive = function(name) {
+  self.receive = function(name, cb) {
     roomName = name;
+    receiveCb = cb;
 
-    senderPeer = new RTCPeerConnection(peerConfig);
+    senderPeer = getPeerConnection('receiver');
 
     senderPeer.onaddstream = function(e) {
       remoteVideo = remoteVideo || createVideoElement();
@@ -225,6 +324,8 @@ var Client = function(container) {
         roomName: roomName,
         offer: desc
       });
+    }).catch(function() {
+      publishCb && publishCb('Unable to create offer');
     });
   };
 
@@ -240,6 +341,28 @@ var Client = function(container) {
     roomName = null;
   };
 };
+
+function getStats(pc, selector) {
+  if(navigator.mozGetUserMedia) {
+    return pc.getStats(selector);
+  }
+  return new Promise(function(resolve, reject) {
+    pc.getStats(function(response) {
+      var standardReport = {};
+      response.result().forEach(function(report) {
+        var standardStats = {
+          id: report.id,
+          type: report.type
+        };
+        report.names().forEach(function(name) {
+          standardStats[name] = report.stat(name);
+        });
+        standardReport[standardStats.id] = standardStats;
+      });
+      resolve(standardReport);
+    }, selector, reject);
+  });
+}
 
 if(typeof window !== 'undefined') {
   _.each(require('webrtc-adapter').browserShim, function(shim) {

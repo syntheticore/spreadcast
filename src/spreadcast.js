@@ -23,14 +23,14 @@ var Spreadcast = {
       });
     };
 
-    wss.on('connection', function connection(socket) {
+    wss.on('connection', function(socket) {
       var sessionId = _.uuid();
 
       var ping = setInterval(function() {
         if(socket.ping) socket.ping(null, null, true);
       }, pingInterval);
 
-      socket.on('message', function incoming(msg) {
+      socket.on('message', function(msg) {
         var data = JSON.parse(msg);
         if(!data._spreadcast) return;
 
@@ -38,7 +38,12 @@ var Spreadcast = {
 
         switch(data.type) {
           case 'openRoom':
-            var room = {
+            var room = rooms[data.name];
+            if(room) return send(socket, {
+              type: 'error',
+              msg: 'RoomNameTaken'
+            });
+            room = {
               name: data.name,
               sender: {
                 id: sessionId,
@@ -48,11 +53,15 @@ var Spreadcast = {
               receivers: {}
             };
             rooms[room.name] = room;
+            send(socket, {type: 'roomCreated'});
             break;
 
           case 'joinRoom':
             var room = rooms[data.roomName];
-            if(!room) return;
+            if(!room) return send(socket, {
+              type: 'error',
+              msg: 'NoSuchRoom'
+            });
             var sock;
             var depth;
             if(_.size(room.sender.leechers) < maxLeechers) {
@@ -125,20 +134,26 @@ var Spreadcast = {
             closeRoom(name);
             return false;
           } else if(room.receivers[sessionId]) {
-            var receiver = room.receivers[sessionId];
-            delete room.receivers[sessionId];
             // Remove leecher entries
+            var dropMsg = {
+              type: 'dropReceiver',
+              receiverId: sessionId
+            };
             delete room.sender.leechers[sessionId];
+            send(room.sender.socket, dropMsg);
             _.each(room.receivers, function(receiver) {
               delete receiver.leechers[sessionId];
+              send(receiver.socket, dropMsg);
             });
             // Send reconnect signal to own leechers
-            _.each(receiver.leechers, function(leecher) {
+            _.each(room.receivers[sessionId].leechers, function(leecher) {
               var sock = room.receivers[leecher.id].socket;
               send(sock, {
                 type: 'reconnect'
               });
             });
+            // Delete receiver
+            delete room.receivers[sessionId];
           }
         });
       });

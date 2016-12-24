@@ -20,7 +20,6 @@
   "keywords": [
     "webrtc",
     "broadcast",
-    "stream",
     "media server"
   ],
   "dependencies": {

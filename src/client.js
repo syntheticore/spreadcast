@@ -21,11 +21,12 @@ var Client = function(container) {
   var socketReady;
   var shutdown = false;
   var receiveCb;
+  var publishCb;
 
   var openSocket = function() {
     socket = new WebSocket(wsUrl);
     socketReady = new Promise(function(ok, fail) {
-      socket.onopen = function(event) {
+      socket.onopen = function() {
         console.log("Socket open");
         ok();
       };
@@ -35,8 +36,8 @@ var Client = function(container) {
       console.log('WebSocket Error', error);
     };
 
-    socket.onclose = function(event) {
-      console.log('WebSocket was closed', event);
+    socket.onclose = function() {
+      console.log('WebSocket was closed');
       if(shutdown) return;
       // Reconnect socket and stream
       _.defer(function() {
@@ -50,6 +51,10 @@ var Client = function(container) {
       if(!data._spreadcast) return;
 
       switch(data.type) {
+        case 'roomCreated':
+          publishCb && publishCb();
+          break;
+
         case 'offer':
           console.log("Got offer from receiver " + data.fromReceiver);
           var peer = getPeerConnection('publisher');
@@ -83,7 +88,7 @@ var Client = function(container) {
           senderId = data.fromSender;
           console.log("Got answer from sender " + senderId);
           senderPeer.setRemoteDescription(data.answer);
-          receiveCb && receiveCb()
+          receiveCb && receiveCb();
           break;
         
         case 'iceCandidate':
@@ -111,7 +116,10 @@ var Client = function(container) {
         case 'error':
           if(data.msg == 'NoSuchRoom') {
             stop();
-            receiveCb && receiveCb('Room doesn\'t exist')
+            receiveCb && receiveCb('Room doesn\'t exist');
+          } else if(data.msg == 'RoomNameTaken') {
+            stop();
+            publishCb && publishCb('Room name is already taken');
           }
           break;
       }
@@ -142,15 +150,11 @@ var Client = function(container) {
         height: 480,
         frameRate: 30
       }}, constraints || {})
-    )
-    .then(function(stream) {
+    ).then(function(stream) {
       localVideo = localVideo || createVideoElement();
       localVideo.muted = true;
       localVideo.srcObject = stream;
       localStream = stream;
-    })
-    .catch(function(e) {
-      alert('getUserMedia() error: ' + e.name);
     });
   };
 
@@ -264,13 +268,16 @@ var Client = function(container) {
     if(self.onStop) self.onStop();
   };
   
-  self.publish = function(name, constraints) {
+  self.publish = function(name, constraints, cb) {
     roomName = name;
+    publishCb = cb;
     getMedia(constraints).then(function() {
       send({
         type: 'openRoom',
         name: name
       });
+    }).catch(function() {
+      publishCb && publishCb('Could not initialize video stream');
     });
   };
 
@@ -317,6 +324,8 @@ var Client = function(container) {
         roomName: roomName,
         offer: desc
       });
+    }).catch(function() {
+      publishCb && publishCb('Unable to create offer');
     });
   };
 

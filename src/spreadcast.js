@@ -38,7 +38,12 @@ var Spreadcast = {
 
         switch(data.type) {
           case 'openRoom':
-            var room = {
+            var room = rooms[data.name];
+            if(room) return send(socket, {
+              type: 'error',
+              msg: 'RoomNameTaken'
+            });
+            room = {
               name: data.name,
               sender: {
                 id: sessionId,
@@ -48,6 +53,7 @@ var Spreadcast = {
               receivers: {}
             };
             rooms[room.name] = room;
+            send(socket, {type: 'roomCreated'});
             break;
 
           case 'joinRoom':

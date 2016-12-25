@@ -132,7 +132,7 @@ var Spreadcast = {
           if(room.sender.id == sessionId) {
             // Publisher went away -> Terminate stream
             closeRoom(name);
-            return false;
+            return true;
           } else if(room.receivers[sessionId]) {
             // Remove leecher entries
             var dropMsg = {
@@ -154,6 +154,7 @@ var Spreadcast = {
             });
             // Delete receiver
             delete room.receivers[sessionId];
+            return true;
           }
         });
       });

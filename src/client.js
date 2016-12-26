@@ -155,6 +155,9 @@ var Client = function(container) {
       localVideo.muted = true;
       localVideo.srcObject = stream;
       localStream = stream;
+      return new Promise(function(ok, fail) {
+        localVideo.onplaying = ok;
+      });
     });
   };
 

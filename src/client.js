@@ -329,7 +329,7 @@ var Client = function(container) {
         offer: desc
       });
     }).catch(function() {
-      publishCb && publishCb('Unable to create offer');
+      receiveCb && receiveCb('Unable to create offer');
     });
   };
 

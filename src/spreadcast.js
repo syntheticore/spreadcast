@@ -101,7 +101,9 @@ var Spreadcast = {
           case 'answer':
             var room = rooms[data.roomName];
             if(!room) return;
-            send(room.receivers[data.toReceiver].socket, {
+            var receiver = room.receivers[data.toReceiver];
+            if(!receiver) return;
+            send(receiver.socket, {
               type: 'answer',
               answer: data.answer,
               fromSender: sessionId

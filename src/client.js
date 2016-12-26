@@ -68,7 +68,7 @@ var Client = function(container) {
               });
             }
           };
-          peer.addStream(localStream || remoteStream);
+          peer.addStream(self.getStream());
           // var stream = localStream || remoteStream;
           // stream.getTracks().forEach(track => peer.addTrack(track, stream));
           peer.setRemoteDescription(data.offer);
@@ -340,6 +340,27 @@ var Client = function(container) {
     }
     stop();
     roomName = null;
+  };
+
+  self.getStream = function() {
+    return localStream || remoteStream;
+  };
+
+  self.record = function() {
+    var recordedBlobs = [];
+    var mediaRecorder = new MediaRecorder(self.getStream());
+    mediaRecorder.ondataavailable = function(e) {
+      if (e.data && e.data.size > 0) {
+        recordedBlobs.push(e.data);
+      }
+    };
+    mediaRecorder.start(10);
+    var stopRecord = function() {
+      mediaRecorder.stop();
+      var buffer = new Blob(recordedBlobs, {type: 'video/webm'});
+      return window.URL.createObjectURL(buffer);
+    };
+    return stopRecord;
   };
 };
 

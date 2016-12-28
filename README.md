@@ -15,7 +15,7 @@ Broadcast a WebRTC stream to many subscribers
   var Spreadcast = require('spreadcast');
 
   var server = require('http').createServer();
-  server.listen(PORT);
+  server.listen();
 
   Spreadcast.serve({server: server});
   ```
@@ -26,17 +26,25 @@ Broadcast a WebRTC stream to many subscribers
   ```JavaScript
   var Spreadcast = require('spreadcast');
 
-  var container = document.getElementById('container');
+  var container = document.querySelector('#container');
 
-  var publisher = new Spreadcast.Client({
-    container: container
+  var publisher = new Spreadcast.Client();
+  publisher.publish('streamName', {
+    video: {
+      width: 320,
+      height: 240,
+      frameRate: 30
+    }
+  }, function(error, video) {
+    if(error) console.error(error);
+    container.appendChild(video);
   });
-  publisher.publish('streamName');
 
-  var receiver = new Spreadcast.Client({
-    container: container
+  var receiver = new Spreadcast.Client();
+  receiver.receive('streamName', function(error, video) {
+    if(error) console.error(error);
+    container.appendChild(video);
   });
-  receiver.receive('streamName');
   ```
 
 ## License

@@ -1,10 +1,11 @@
 var freeice = require('freeice');
 var _ = require('eakwell');
 
-var Client = function(container) {
+var Socket = require('./socket.js');
+
+var Client = function() {
   var self = this;
 
-  var wsUrl = location.origin.replace(/^http/, 'ws');
   var roomName;
 
   var localStream;
@@ -18,19 +19,12 @@ var Client = function(container) {
   var senderIceCandidateCache = [];
 
   var socket;
-  var socketReady;
   var shutdown = false;
   var receiveCb;
   var publishCb;
 
   var openSocket = function() {
-    socket = new WebSocket(wsUrl);
-    socketReady = new Promise(function(ok, fail) {
-      socket.onopen = function() {
-        console.log("Socket open");
-        ok();
-      };
-    });
+    socket = new Socket('_spreadcast');
 
     socket.onerror = function(error) {
       console.log('WebSocket Error', error);
@@ -42,17 +36,14 @@ var Client = function(container) {
       // Reconnect socket and stream
       _.defer(function() {
         openSocket();
-        if(senderPeer) socketReady.then(reconnect);
+        if(senderPeer) reconnect();
       }, 1000);
     };
 
-    socket.onmessage = function(event) {
-      var data = JSON.parse(event.data);
-      if(!data._spreadcast) return;
-
+    socket.onmessage = function(data) {
       switch(data.type) {
         case 'roomCreated':
-          publishCb && publishCb();
+          publishCb && publishCb(null, localVideo);
           break;
 
         case 'offer':
@@ -60,7 +51,7 @@ var Client = function(container) {
           var peer = getPeerConnection('publisher');
           peer.onicecandidate = function(e) {
             if(e.candidate) {
-              send({
+              socket.send({
                 type: 'iceCandidate',
                 roomName: roomName,
                 candidate: e.candidate,
@@ -74,7 +65,7 @@ var Client = function(container) {
           peer.setRemoteDescription(data.offer);
           peer.createAnswer().then(function(desc) {
             peer.setLocalDescription(desc);
-            send({
+            socket.send({
               type: 'answer',
               answer: desc,
               roomName: roomName,
@@ -88,7 +79,6 @@ var Client = function(container) {
           senderId = data.fromSender;
           console.log("Got answer from sender " + senderId);
           senderPeer.setRemoteDescription(data.answer);
-          receiveCb && receiveCb();
           break;
         
         case 'iceCandidate':
@@ -128,17 +118,9 @@ var Client = function(container) {
 
   openSocket();
 
-  var send = function(data) {
-    socketReady.then(function() {
-      data._spreadcast = true;
-      if(socket) socket.send(JSON.stringify(data));
-    });
-  };
-
   var createVideoElement = function() {
     var video = document.createElement('video');
     video.autoplay = true;
-    container.appendChild(video);
     return video;
   };
 
@@ -267,8 +249,7 @@ var Client = function(container) {
     localVideo = null;
     remoteVideo = null;
     shutdown = true;
-    if(socket) socket.close();
-    socket = null;
+    socket.close();
     if(self.onStop) self.onStop();
   };
   
@@ -276,7 +257,7 @@ var Client = function(container) {
     roomName = name;
     publishCb = cb;
     getMedia(constraints).then(function() {
-      send({
+      socket.send({
         type: 'openRoom',
         name: name
       });
@@ -295,6 +276,7 @@ var Client = function(container) {
       remoteVideo = remoteVideo || createVideoElement();
       remoteVideo.srcObject = e.stream;
       remoteStream = e.stream;
+      receiveCb && receiveCb(null, remoteVideo);
     };
 
     // senderPeer.ontrack = function(e) {
@@ -308,7 +290,7 @@ var Client = function(container) {
         _.waitFor(function() {
           return senderId;
         }, function() {
-          send({
+          socket.send({
             type: 'iceCandidate',
             roomName: roomName,
             candidate: e.candidate,
@@ -323,7 +305,7 @@ var Client = function(container) {
       offerToReceiveVideo: 1
     }).then(function(desc) {
       senderPeer.setLocalDescription(desc);
-      send({
+      socket.send({
         type: 'joinRoom',
         roomName: roomName,
         offer: desc
@@ -336,7 +318,7 @@ var Client = function(container) {
   self.stop = function() {
     // Close the entire room if we are the publisher
     if(!senderPeer) {
-      send({
+      socket.send({
         type: 'closeRoom',
         roomName: roomName
       });
@@ -360,8 +342,7 @@ var Client = function(container) {
     mediaRecorder.start(10);
     var stopRecord = function() {
       mediaRecorder.stop();
-      var buffer = new Blob(recordedBlobs, {type: 'video/webm'});
-      return window.URL.createObjectURL(buffer);
+      return new Blob(recordedBlobs, {type: 'video/webm'});
     };
     return stopRecord;
   };
@@ -393,7 +374,10 @@ if(typeof window !== 'undefined') {
   _.each(require('webrtc-adapter').browserShim, function(shim) {
     shim();
   });
-  window.Spreadcast = Client;
+  window.Spreadcast = {
+    Client: Client,
+    Socket: Socket
+  };
 }
 
 module.exports = Client;

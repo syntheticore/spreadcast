@@ -2,6 +2,7 @@ var _ = require('eakwell');
 var websocket = require('ws');
 
 var Spreadcast = {
+  Socket: require('./socket.js'),
   Client: require('./client.js'),
 
   serve: function(options) {

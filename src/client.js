@@ -8,20 +8,17 @@ var Client = function() {
 
   var roomName;
 
-  var localStream;
-  var remoteStream;
-  var localVideo;
-  var remoteVideo;
-
+  var stream;
+  var video;
   var senderPeer;
   var senderId;
-  var receiverPeers = {};
-  var senderIceCandidateCache = [];
-
   var socket;
-  var shutdown = false;
   var receiveCb;
   var publishCb;
+
+  var receiverPeers = {};
+  var senderIceCandidateCache = [];
+  var shutdown = false;
 
   var openSocket = function() {
     socket = new Socket('_spreadcast');
@@ -43,7 +40,7 @@ var Client = function() {
     socket.onmessage = function(data) {
       switch(data.type) {
         case 'roomCreated':
-          publishCb && publishCb(null, localVideo);
+          publishCb && publishCb(null, video);
           break;
 
         case 'offer':
@@ -59,8 +56,7 @@ var Client = function() {
               });
             }
           };
-          peer.addStream(self.getStream());
-          // var stream = localStream || remoteStream;
+          peer.addStream(stream);
           // stream.getTracks().forEach(track => peer.addTrack(track, stream));
           peer.setRemoteDescription(data.offer);
           peer.createAnswer().then(function(desc) {
@@ -132,13 +128,13 @@ var Client = function() {
         height: 480,
         frameRate: 30
       }}, constraints || {})
-    ).then(function(stream) {
-      localVideo = localVideo || createVideoElement();
-      localVideo.muted = true;
-      localVideo.srcObject = stream;
-      localStream = stream;
+    ).then(function(_stream) {
+      stream = _stream;
+      video = video || createVideoElement();
+      video.muted = true;
+      video.srcObject = stream;
       return new Promise(function(ok, fail) {
-        localVideo.onplaying = ok;
+        video.onplaying = ok;
       });
     });
   };
@@ -160,7 +156,6 @@ var Client = function() {
     };
     var iv = setInterval(function() {
       getStats(peer, null).then(function(stats) {
-        // console.log(stats);
         var score = 0;
         _.each(stats, function(stat) {
           if(type == 'receiver') {
@@ -222,19 +217,18 @@ var Client = function() {
 
   var terminate = function() {
     if(senderPeer) senderPeer.close();
-    senderPeer = null;
-    senderId = null;
-    remoteStream = null;
     _.each(receiverPeers, function(peer) {
       peer.close();
     });
-    receiverPeers = {};
-    if(localStream) {
-      _.each(localStream.getTracks(), function(track) {
+    if(stream && !senderPeer) {
+      _.each(stream.getTracks(), function(track) {
         track.stop();
       });
-      localStream = null;
     }
+    receiverPeers = {};
+    senderPeer = null;
+    senderId = null;
+    stream = null;
   };
 
   var reconnect = function() {
@@ -244,10 +238,8 @@ var Client = function() {
 
   var stop = function() {
     terminate();
-    if(remoteVideo) remoteVideo.parentElement.removeChild(remoteVideo);
-    if(localVideo) localVideo.parentElement.removeChild(localVideo);
-    localVideo = null;
-    remoteVideo = null;
+    if(video) video.parentElement.removeChild(video);
+    video = null;
     shutdown = true;
     socket.close();
     if(self.onStop) self.onStop();
@@ -273,10 +265,10 @@ var Client = function() {
     senderPeer = getPeerConnection('receiver');
 
     senderPeer.onaddstream = function(e) {
-      remoteVideo = remoteVideo || createVideoElement();
-      remoteVideo.srcObject = e.stream;
-      remoteStream = e.stream;
-      receiveCb && receiveCb(null, remoteVideo);
+      stream = e.stream;
+      video = video || createVideoElement();
+      video.srcObject = stream;
+      receiveCb && receiveCb(null, video);
     };
 
     // senderPeer.ontrack = function(e) {
@@ -327,13 +319,9 @@ var Client = function() {
     roomName = null;
   };
 
-  self.getStream = function() {
-    return localStream || remoteStream;
-  };
-
   self.record = function() {
     var recordedBlobs = [];
-    var mediaRecorder = new MediaRecorder(self.getStream());
+    var mediaRecorder = new MediaRecorder(stream);
     mediaRecorder.ondataavailable = function(e) {
       if (e.data && e.data.size > 0) {
         recordedBlobs.push(e.data);

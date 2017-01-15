@@ -189,14 +189,6 @@ var Spreadcast = {
         _.each(rooms, function(room, name) {
           if(room.clients[sessionId]) {
             delete room.clients[sessionId];
-            if(room.streams[sessionId]) {
-              _.each(room.clients, function(client) {
-                client.socket.send({
-                  type: 'removeStream',
-                  streamId: sessionId
-                });
-              });
-            }
             delete room.streams[sessionId];
             if(!_.keys(room.clients).length) {
               delete rooms[name];

@@ -11,7 +11,7 @@ var Room = function(roomName) {
   var publisher;
   var receivers = {};
 
-  var socket = new Socket.Socket('spreadcast');
+  var socket = new Socket.Socket();
 
   socket.onerror = function(error) {
     console.log('WebSocket Error', error);
@@ -28,9 +28,6 @@ var Room = function(roomName) {
 
       case 'addStream':
         receive(data.streamId);
-        break;
-
-      case 'removeStream':
         break;
     }
   };
@@ -55,10 +52,7 @@ var Room = function(roomName) {
   self.publish = function(constraints, cb) {
     publisher = new Broadcast(sessionId);
     publisher.publish(constraints, function(error, video) {
-      if(error) return console.error(error);
-
-      cb(video);
-
+      cb(error, video);
       socket.send({
         type: 'publish',
         roomName: roomName

@@ -1,7 +1,7 @@
 # spreadcast.js
 [![npm version](https://badge.fury.io/js/spreadcast.svg)](http://badge.fury.io/js/spreadcast)
 
-Broadcast a WebRTC stream to many subscribers
+Broadcast WebRTC streams to many subscribers
 
 ## Installation
 
@@ -9,7 +9,7 @@ Broadcast a WebRTC stream to many subscribers
 
 ## Usage
   
-  ## Node Server
+  # Node Server
 
   ```JavaScript
   var Spreadcast = require('spreadcast');
@@ -21,29 +21,64 @@ Broadcast a WebRTC stream to many subscribers
   ```
 
 
-  ## Browser Client
+  # Browser Client
 
   ```JavaScript
+  // If you use Browserify in your project already,
+  // you can require spreadcast directly
+
   var Spreadcast = require('spreadcast');
 
-  var container = document.querySelector('#container');
+  // Otherwise include the bundle from
+  // ./node_modules/spreadcast/dist/spreadcast.min.js in your HTML
 
-  var publisher = new Spreadcast.Client();
-  publisher.publish('streamName', {
+  // Use the Room class to easily implement a video chat
+  // among several publishers with many viewers
+
+  var room = new Spreadcast.Room('roomName');
+
+  room.onAddStream = function(video) {
+    document.body.appendChild(video);
+  };
+
+  room.onRemoveStream = function(video) {
+    video.parentElement.removeChild(video);
+  };
+
+  // Call publish/unpublish anytime 
+  room.publish({
     video: {
       width: 320,
       height: 240,
+      frameRate: 20
+    }
+  }, function(error, video) {
+    if(error) return console.error(error);
+    document.body.appendChild(video);
+  });
+
+
+  // You can also use the Broadcast class directly
+  // to implement simple one-to-many scenarios
+
+  var publisher = new Spreadcast.Broadcast('streamName');
+
+  publisher.publish({
+    video: {
+      width: 640,
+      height: 480,
       frameRate: 30
     }
   }, function(error, video) {
     if(error) console.error(error);
-    container.appendChild(video);
+    document.body.appendChild(video);
   });
 
-  var receiver = new Spreadcast.Client();
-  receiver.receive('streamName', function(error, video) {
+  var receiver = new Spreadcast.Broadcast('streamName');
+
+  receiver.receive(function(error, video) {
     if(error) console.error(error);
-    container.appendChild(video);
+    document.body.appendChild(video);
   });
   ```
 

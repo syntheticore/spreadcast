@@ -8,7 +8,7 @@ var shutdown = false;
 var Socket = function(channel) {
   var self = this;
 
-  self.channel = channel;
+  self.channel = channel || 'spreadcast';
   self.sessionId = _.uuid();
 
   self.send = function(data) {

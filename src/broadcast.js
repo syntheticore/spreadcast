@@ -19,7 +19,7 @@ var Broadcast = function(broadcastName, keepVideos) {
   var senderIceCandidateCache = [];
   var shutdown = false;
 
-  var socket = new Socket.Socket('spreadcast');
+  var socket = new Socket.Socket();
 
   socket.onerror = function(error) {
     console.log('WebSocket Error', error);

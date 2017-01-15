@@ -37,7 +37,7 @@ var SocketServer = function(options) {
         delete socks[msg.sessionId];
       } else {
         var sock = socks[msg.sessionId];
-        sock.onMessage && sock.onMessage(msg);
+        sock && sock.onMessage && sock.onMessage(msg);
       }
     });
 

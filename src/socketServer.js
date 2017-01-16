@@ -9,6 +9,7 @@ var SocketServer = function(options) {
   var pingInterval = 10 * 1000;
 
   wss.on('connection', function(socket) {
+    var socketId = _.uuid();
     var socks = {};
 
     var ping = setInterval(function() {
@@ -17,26 +18,31 @@ var SocketServer = function(options) {
 
     socket.on('message', function(msg) {
       msg = JSON.parse(msg);
-      if(msg.channel != channel) return;
+      if(msg._socket.channel != channel) return;
+      var sessionId = msg._socket.sessionId;
 
-      if(msg.type == 'initSocket') {
+      if(msg.type == '_initSocket') {
         var sock = {
+          deviceId: socketId,
+          sessionId: sessionId,
           send: function(data) {
             try {
-              data.channel = channel;
-              data.sessionId = msg.sessionId;
+              data._socket = {
+                channel: channel,
+                sessionId: sessionId
+              };
               socket.send(JSON.stringify(data));
             } catch(e) {}
           }
         };
-        socks[msg.sessionId] = sock;
+        socks[sessionId] = sock;
         self.onConnection(sock);
-      } else if(msg.type == 'closeSocket') {
-        var sock = socks[msg.sessionId];
+      } else if(msg.type == '_closeSocket') {
+        var sock = socks[sessionId];
         sock.onClose && sock.onClose();
-        delete socks[msg.sessionId];
+        delete socks[sessionId];
       } else {
-        var sock = socks[msg.sessionId];
+        var sock = socks[sessionId];
         sock && sock.onMessage && sock.onMessage(msg);
       }
     });

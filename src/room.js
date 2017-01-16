@@ -3,7 +3,7 @@ var _ = require('eakwell');
 var Socket = require('./socket.js');
 var Broadcast = require('./broadcast.js');
 
-var Room = function(roomName) {
+var Room = function(roomName, cb) {
   Socket.init();
   var self = this;
 
@@ -21,6 +21,7 @@ var Room = function(roomName) {
     switch(data.type) {
       case 'joinedRoom':
         sessionId = data.session;
+        cb && cb(null);
         _.each(data.streams, function(streamId) {
           receive(streamId);
         });

@@ -27,7 +27,7 @@ Broadcast WebRTC streams to many subscribers
   // If you use Browserify in your project already,
   // you can require spreadcast directly
 
-  var Spreadcast = require('spreadcast');
+  var spreadcast = require('spreadcast');
 
   // Otherwise include the bundle from
   // ./node_modules/spreadcast/dist/spreadcast.min.js in your HTML
@@ -35,7 +35,7 @@ Broadcast WebRTC streams to many subscribers
   // Use the Room class to easily implement a video chat
   // among several publishers with many viewers
 
-  var room = new Spreadcast.Room('roomName');
+  var room = new spreadcast.Room('roomName');
 
   room.onAddStream = function(video) {
     document.body.appendChild(video);
@@ -61,7 +61,7 @@ Broadcast WebRTC streams to many subscribers
   // You can also use the Broadcast class directly
   // to implement simple one-to-many scenarios
 
-  var publisher = new Spreadcast.Broadcast('streamName');
+  var publisher = new spreadcast.Broadcast('streamName');
 
   publisher.publish({
     video: {
@@ -74,7 +74,7 @@ Broadcast WebRTC streams to many subscribers
     document.body.appendChild(video);
   });
 
-  var receiver = new Spreadcast.Broadcast('streamName');
+  var receiver = new spreadcast.Broadcast('streamName');
 
   receiver.receive(function(error, video) {
     if(error) console.error(error);

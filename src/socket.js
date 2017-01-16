@@ -13,8 +13,10 @@ var Socket = function(channel) {
 
   self.send = function(data) {
     socketReady.then(function() {
-      data.channel = self.channel;
-      data.sessionId = self.sessionId;
+      data._socket = {
+        channel: self.channel,
+        sessionId: self.sessionId
+      };
       if(socket) socket.send(JSON.stringify(data));
     });
   };
@@ -23,20 +25,20 @@ var Socket = function(channel) {
     _.remove(instances, self);
     self.onclose && self.onclose();
     self.send({
-      type: 'closeSocket'
+      type: '_closeSocket'
     });
   };
 
   instances.push(self);
 
   self.send({
-    type: 'initSocket'
+    type: '_initSocket'
   });
 };
 
 var openSocket = function() {
   socket = new WebSocket(location.origin.replace(/^http/, 'ws'));
-  socketReady = new Promise(function(ok, fail) {
+  socketReady = new Promise(function(ok) {
     socket.onopen = ok;
   });
   socket.onclose = function() {
@@ -59,7 +61,7 @@ var init = function() {
   socket.onmessage = function(e) {
     var data = JSON.parse(e.data);
     _.each(instances, function(sock) {
-      if(data.channel == sock.channel && data.sessionId == sock.sessionId && sock.onmessage) {
+      if(data._socket.channel == sock.channel && data._socket.sessionId == sock.sessionId && sock.onmessage) {
         sock.onmessage(data);
         return true;
       }

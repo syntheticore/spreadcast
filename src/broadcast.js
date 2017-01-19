@@ -98,9 +98,9 @@ var Broadcast = function(roomName, keepVideos) {
     return navigator.mediaDevices.getUserMedia(_.merge({
       audio: true,
       video: {
-        width: 640,
-        height: 480,
-        frameRate: 30
+        width: 320,
+        height: 240,
+        frameRate: 24
       }}, constraints || {})
     ).then(function(_stream) {
       stream = _stream;

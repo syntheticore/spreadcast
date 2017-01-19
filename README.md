@@ -1,7 +1,7 @@
 # spreadcast.js
 [![npm version](https://badge.fury.io/js/spreadcast.svg)](http://badge.fury.io/js/spreadcast)
 
-Broadcast WebRTC streams to many subscribers
+Broadcast WebRTC streams to many receivers
 
 ## Installation
 
@@ -45,39 +45,16 @@ Broadcast WebRTC streams to many subscribers
     video.parentElement.removeChild(video);
   };
 
-  // Call publish/unpublish anytime 
+  // Call publish/unpublish at any time
+  // You can pass a regular WebRTC constraints object to configure your stream
   room.publish({
     video: {
       width: 320,
       height: 240,
-      frameRate: 20
+      frameRate: 24
     }
   }, function(error, video) {
     if(error) return console.error(error);
-    document.body.appendChild(video);
-  });
-
-
-  // You can also use the Broadcast class directly
-  // to implement simple one-to-many scenarios
-
-  var publisher = new spreadcast.Broadcast('streamName');
-
-  publisher.publish({
-    video: {
-      width: 640,
-      height: 480,
-      frameRate: 30
-    }
-  }, function(error, video) {
-    if(error) console.error(error);
-    document.body.appendChild(video);
-  });
-
-  var receiver = new spreadcast.Broadcast('streamName');
-
-  receiver.receive(function(error, video) {
-    if(error) console.error(error);
     document.body.appendChild(video);
   });
   ```

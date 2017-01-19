@@ -7,7 +7,6 @@ var Room = function(roomName, cb) {
   Socket.init();
   var self = this;
 
-  var sessionId;
   var publisher;
   var receivers = {};
 
@@ -20,7 +19,6 @@ var Room = function(roomName, cb) {
   socket.onmessage = function(data) {
     switch(data.type) {
       case 'joinedRoom':
-        sessionId = data.session;
         cb && cb(null);
         _.each(data.streams, function(streamId) {
           receive(streamId);
@@ -39,8 +37,8 @@ var Room = function(roomName, cb) {
   });
 
   var receive = function(streamId) {
-    var receiver = new Broadcast(streamId, true);
-    receiver.receive(function(error, video) {
+    var receiver = new Broadcast(roomName, true);
+    receiver.receive(streamId, function(error, video) {
       if(error) return console.error(error);
       self.onAddStream(video);
       receiver.onStop = function() {
@@ -51,13 +49,9 @@ var Room = function(roomName, cb) {
   };
 
   self.publish = function(constraints, cb) {
-    publisher = new Broadcast(sessionId);
+    publisher = new Broadcast(roomName);
     publisher.publish(constraints, function(error, video) {
       cb(error, video);
-      socket.send({
-        type: 'publish',
-        roomName: roomName
-      });
     });
   };
 

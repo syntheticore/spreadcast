@@ -3,17 +3,16 @@ var _ = require('eakwell');
 
 var Socket = require('./socket.js');
 
-var Broadcast = function(broadcastName, keepVideos) {
+var Broadcast = function(roomName, keepVideos) {
   var self = this;
 
   Socket.init();
 
+  var broadcastName;
   var stream;
   var video;
   var senderPeer;
   var senderId;
-  var receiveCb;
-  var publishCb;
 
   var receiverPeers = {};
   var senderIceCandidateCache = [];
@@ -31,10 +30,6 @@ var Broadcast = function(broadcastName, keepVideos) {
 
   socket.onmessage = function(data) {
     switch(data.type) {
-      case 'broadcastCreated':
-        publishCb && publishCb(null, video);
-        break;
-
       case 'offer':
         console.log("Got offer from receiver " + data.fromReceiver);
         var peer = getPeerConnection('publisher');
@@ -89,16 +84,6 @@ var Broadcast = function(broadcastName, keepVideos) {
 
       case 'reconnect':
         reconnect();
-        break;
-
-      case 'error':
-        if(data.msg == 'NoSuchBroadcast') {
-          stop();
-          receiveCb && receiveCb('Broadcast doesn\'t exist');
-        } else if(data.msg == 'BroadcastNameTaken') {
-          stop();
-          publishCb && publishCb('Broadcast name is already taken');
-        }
         break;
     }
   };
@@ -167,19 +152,19 @@ var Broadcast = function(broadcastName, keepVideos) {
   };
   
   self.publish = function(constraints, cb) {
-    publishCb = cb;
     getMedia(constraints).then(function() {
       socket.send({
         type: 'publishStream',
-        name: broadcastName
+        roomName: roomName
       });
+      cb && cb(null, video);
     }).catch(function() {
-      publishCb && publishCb('Could not initialize video stream');
+      cb && cb('Could not initialize video stream');
     });
   };
 
-  self.receive = function(cb) {
-    receiveCb = cb;
+  self.receive = function(_broadcastName, cb) {
+    broadcastName = _broadcastName;
 
     senderPeer = getPeerConnection('receiver');
 
@@ -187,7 +172,7 @@ var Broadcast = function(broadcastName, keepVideos) {
       stream = e.stream;
       video = video || createVideoElement();
       video.srcObject = stream;
-      receiveCb && receiveCb(null, video);
+      cb && cb(null, video);
     };
 
     // senderPeer.ontrack = function(e) {
@@ -203,6 +188,7 @@ var Broadcast = function(broadcastName, keepVideos) {
         }, function() {
           socket.send({
             type: 'iceCandidate',
+            // roomName: roomName,
             broadcastName: broadcastName,
             candidate: e.candidate,
             to: senderId
@@ -222,7 +208,7 @@ var Broadcast = function(broadcastName, keepVideos) {
         offer: desc
       });
     }).catch(function() {
-      receiveCb && receiveCb('Unable to create offer');
+      cb && cb('Unable to create offer');
     });
   };
 
@@ -230,8 +216,7 @@ var Broadcast = function(broadcastName, keepVideos) {
     // Close the entire broadcast if we are the publisher
     if(!senderPeer) {
       socket.send({
-        type: 'closeBroadcast',
-        broadcastName: broadcastName
+        type: 'closeBroadcast'
       });
     }
     stop();

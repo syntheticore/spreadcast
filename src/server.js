@@ -5,7 +5,6 @@ var SocketServer = require('./socketServer.js');
 
 var Spreadcast = {
   Socket: require('./socket.js'),
-  Broadcast: require('./broadcast.js'),
   Room: require('./room.js'),
   SocketServer: SocketServer,
 
@@ -13,18 +12,20 @@ var Spreadcast = {
     var wss = new SocketServer(options);
 
     var rooms = {};
-    var broadcasts = {};
+    var roomsByClient = {};
+    var broadcastsByPublisher = {};
+    var broadcastsByReceiver = {};
     var maxLeechers = options.maxLeechers || 3;
     var sessionIds = {};
 
-    var closeBroadcast = function(broadcastName) {
-      var broadcast = broadcasts[broadcastName];
+    var closeBroadcast = function(publisherId) {
+      var broadcast = broadcastsByPublisher[publisherId];
       if(!broadcast) return;
-      delete broadcasts[broadcastName];
+      delete broadcastsByPublisher[publisherId];
+      delete broadcast.room.broadcasts[publisherId];
       _.each(broadcast.receivers, function(receiver) {
         receiver.socket.send({
-          type: 'stop',
-          broadcastName: broadcastName
+          type: 'stop'
         });
       });
     };
@@ -34,14 +35,35 @@ var Spreadcast = {
 
       socket.onMessage = function(data) {
         switch(data.type) {
-          case 'publishStream':
-            var broadcast = broadcasts[data.name];
-            if(broadcast) return socket.send({
-              type: 'error',
-              msg: 'BroadcastNameTaken'
+
+          case 'join':
+            var room = rooms[data.roomName];
+            if(!room) {
+              room = {
+                name: data.roomName,
+                clients: {},
+                broadcasts: {}
+              };
+              rooms[data.roomName] = room;
+            }
+            room.clients[sessionId] = {
+              id: sessionId,
+              socket: socket
+            };
+            roomsByClient[sessionId] = room;
+            socket.send({
+              type: 'joinedRoom',
+              streams: _.keys(room.broadcasts),
+              session: sessionId
             });
-            broadcast = {
-              name: data.name,
+            break;
+
+          case 'publishStream':
+            var room = rooms[data.roomName];
+            if(!room) return;
+
+            var broadcast = {
+              room: room,
               sender: {
                 id: sessionId,
                 socket: socket,
@@ -49,18 +71,29 @@ var Spreadcast = {
               },
               receivers: {}
             };
-            broadcasts[broadcast.name] = broadcast;
-            socket.send({type: 'broadcastCreated'});
+
+            room.broadcasts[sessionId] = broadcast;
+            broadcastsByPublisher[sessionId] = broadcast;
+            _.each(room.clients, function(client) {
+              if(client.socket.deviceId != socket.deviceId) client.socket.send({
+                type: 'addStream',
+                streamId: sessionId
+              });
+            });
             break;
 
           case 'receiveStream':
-            var broadcast = broadcasts[data.broadcastName];
-            if(!broadcast) return socket.send({
-              type: 'error',
-              msg: 'NoSuchBroadcast'
+            var broadcast = broadcastsByPublisher[data.broadcastName];
+            if(!broadcast) return;
+
+            // Check if receiver is already publishing to the same room
+            var directConnect = _.any(broadcast.room.broadcasts, function(stream) {
+              return stream.sender.socket.deviceId == socket.deviceId;
             });
+
             var sock;
             var depth;
+            var minLeechers = _.keys(broadcast.room.broadcasts).length;
             if(_.size(broadcast.sender.leechers) < maxLeechers) {
               // Send offer to original publisher
               broadcast.sender.leechers[sessionId] = {id: sessionId};
@@ -79,11 +112,13 @@ var Spreadcast = {
               sock = bestReceiver.socket;
               depth = bestReceiver.depth + 1;
             }
-            broadcast.receivers[sessionId] = {
+            var receiver = {
               socket: socket,
               depth: depth,
               leechers: {}
             };
+            broadcast.receivers[sessionId] = receiver;
+            broadcastsByReceiver[sessionId] = broadcast;
             sock.send({
               type: 'offer',
               offer: data.offer,
@@ -92,11 +127,11 @@ var Spreadcast = {
             break;
 
           case 'closeBroadcast':
-            closeBroadcast(data.broadcastName);
+            closeBroadcast(sessionId);
             break;
 
           case 'answer':
-            var broadcast = broadcasts[data.broadcastName];
+            var broadcast = broadcastsByPublisher[data.broadcastName || sessionId];
             if(!broadcast) return;
             var receiver = broadcast.receivers[data.toReceiver];
             if(!receiver) return;
@@ -108,7 +143,7 @@ var Spreadcast = {
             break;
 
           case 'iceCandidate':
-            var broadcast = broadcasts[data.broadcastName];
+            var broadcast = broadcastsByPublisher[data.broadcastName || sessionId];
             if(!broadcast) return;
             var sock;
             if(broadcast.sender.id == data.to) {
@@ -122,81 +157,46 @@ var Spreadcast = {
               from: sessionId
             });
             break;
-
-          case 'join':
-            var room = rooms[data.roomName];
-            if(!room) {
-              room = {
-                name: data.roomName,
-                clients: {},
-                streams: {}
-              };
-              rooms[data.roomName] = room;
-            }
-            room.clients[sessionId] = {
-              id: sessionId,
-              socket: socket
-            };
-            socket.send({
-              type: 'joinedRoom',
-              streams: room.streams,
-              session: sessionId
-            });
-            break;
-
-          case 'publish':
-            var room = rooms[data.roomName];
-            room.streams[sessionId] = sessionId;
-            _.each(room.clients, function(client) {
-              if(client.id != sessionId) client.socket.send({
-                type: 'addStream',
-                streamId: sessionId
-              });
-            });
-            break;
         }
       };
 
       socket.onClose = function() {
-        _.each(broadcasts, function(broadcast, name) {
-          if(broadcast.sender.id == sessionId) {
-            // Publisher went away -> Terminate stream
-            closeBroadcast(name);
-            return true;
-          } else if(broadcast.receivers[sessionId]) {
-            // Remove leecher entries
-            var dropMsg = {
-              type: 'dropReceiver',
-              receiverId: sessionId
-            };
-            delete broadcast.sender.leechers[sessionId];
-            broadcast.sender.socket.send(dropMsg);
-            _.each(broadcast.receivers, function(receiver) {
-              delete receiver.leechers[sessionId];
-              receiver.socket.send(dropMsg);
+        var broadcast;
+        if(broadcast = broadcastsByPublisher[sessionId]) {
+          // Publisher went away -> Terminate stream
+          closeBroadcast(sessionId);
+        } else if(broadcast = broadcastsByReceiver[sessionId]) {
+          // Remove leecher entries
+          var dropMsg = {
+            type: 'dropReceiver',
+            receiverId: sessionId
+          };
+          delete broadcast.sender.leechers[sessionId];
+          broadcast.sender.socket.send(dropMsg);
+          _.each(broadcast.receivers, function(receiver) {
+            delete receiver.leechers[sessionId];
+            receiver.socket.send(dropMsg);
+          });
+          // Send reconnect signal to own leechers
+          _.each(broadcast.receivers[sessionId].leechers, function(leecher) {
+            var sock = broadcast.receivers[leecher.id].socket;
+            sock.send({
+              type: 'reconnect'
             });
-            // Send reconnect signal to own leechers
-            _.each(broadcast.receivers[sessionId].leechers, function(leecher) {
-              var sock = broadcast.receivers[leecher.id].socket;
-              sock.send({
-                type: 'reconnect'
-              });
-            });
-            // Delete receiver
-            delete broadcast.receivers[sessionId];
-            return true;
-          }
-        });
-        _.each(rooms, function(room, name) {
-          if(room.clients[sessionId]) {
+          });
+          // Delete receiver
+          delete broadcast.receivers[sessionId];
+          delete broadcastsByReceiver[sessionId];
+        } else {
+          var room = roomsByClient[sessionId];
+          if(room) {
             delete room.clients[sessionId];
-            delete room.streams[sessionId];
+            delete roomsByClient[sessionId];
             if(!_.keys(room.clients).length) {
-              delete rooms[name];
+              delete rooms[room.name];
             }
-            return true;
           }
-        });
+        }
       };
     };
   }

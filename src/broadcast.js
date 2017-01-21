@@ -188,7 +188,6 @@ var Broadcast = function(roomName, keepVideos) {
         }, function() {
           socket.send({
             type: 'iceCandidate',
-            // roomName: roomName,
             broadcastName: broadcastName,
             candidate: e.candidate,
             to: senderId
@@ -222,20 +221,27 @@ var Broadcast = function(roomName, keepVideos) {
     stop();
   };
 
-  self.record = function() {
+  self.record = function(cb, chunksize) {
+    chunksize = chunksize || Infinity;
     var recordedBlobs = [];
     var mediaRecorder = new MediaRecorder(stream);
+    var buffersize = 0;
     mediaRecorder.ondataavailable = function(e) {
-      if (e.data && e.data.size > 0) {
+      if(e.data && e.data.size > 0) {
         recordedBlobs.push(e.data);
+        buffersize += e.data.size;
+        if(buffersize > chunksize) {
+          cb && cb(new Blob(recordedBlobs, {type: 'video/webm'}));
+          recordedBlobs = [];
+          buffersize = 0;
+        }
       }
     };
     mediaRecorder.start(10);
-    var stopRecord = function() {
+    return function() {
       mediaRecorder.stop();
-      return new Blob(recordedBlobs, {type: 'video/webm'});
+      cb && recordedBlobs.length && cb(new Blob(recordedBlobs, {type: 'video/webm'}));
     };
-    return stopRecord;
   };
 };
 

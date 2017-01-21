@@ -6,6 +6,7 @@ var SocketServer = require('./socketServer.js');
 var Spreadcast = {
   Socket: require('./socket.js'),
   Room: require('./room.js'),
+  Storage: require('./storage.js'),
   SocketServer: SocketServer,
 
   serve: function(options) {

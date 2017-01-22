@@ -43,17 +43,21 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
             });
           }
         };
-        peer.addStream(stream);
-        // stream.getTracks().forEach(track => peer.addTrack(track, stream));
-        peer.setRemoteDescription(data.offer);
-        peer.createAnswer().then(function(desc) {
-          peer.setLocalDescription(desc);
-          socket.send({
-            type: 'answer',
-            answer: desc,
-            roomName: roomName,
-            broadcastName: broadcastName,
-            toReceiver: data.fromReceiver
+        _.waitFor(function() {
+          return stream;
+        }, function() {
+          peer.addStream(stream);
+          // stream.getTracks().forEach(track => peer.addTrack(track, stream));
+          peer.setRemoteDescription(data.offer);
+          peer.createAnswer().then(function(desc) {
+            peer.setLocalDescription(desc);
+            socket.send({
+              type: 'answer',
+              answer: desc,
+              roomName: roomName,
+              broadcastName: broadcastName,
+              toReceiver: data.fromReceiver
+            });
           });
         });
         receiverPeers[data.fromReceiver] = peer;

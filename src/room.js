@@ -3,7 +3,7 @@ var _ = require('eakwell');
 var Socket = require('./socket.js');
 var Broadcast = require('./broadcast.js');
 
-var Room = function(roomName, cb) {
+var Room = function(roomName) {
   Socket.init();
   var self = this;
 
@@ -19,14 +19,13 @@ var Room = function(roomName, cb) {
   socket.onmessage = function(data) {
     switch(data.type) {
       case 'joinedRoom':
-        cb && cb(null);
-        _.each(data.streams, function(streamId) {
-          receive(streamId);
+        _.each(data.streams, function(name) {
+          receive(name);
         });
         break;
 
       case 'addStream':
-        receive(data.streamId);
+        receive(data.name);
         break;
     }
   };
@@ -37,21 +36,24 @@ var Room = function(roomName, cb) {
   });
 
   var receive = function(streamId) {
-    var receiver = new Broadcast(roomName, true);
-    receiver.receive(streamId, function(error, video) {
+    var receiver = new Broadcast(streamId, roomName, true);
+    receiver.receive(function(error, video) {
       if(error) return console.error(error);
-      self.onAddStream(video);
+      self.onAddStream(video, streamId);
       receiver.onStop = function() {
-        self.onRemoveStream(video);
+        self.onRemoveStream(video, streamId);
       };
     });
     receivers[streamId] = receiver;
   };
 
-  self.publish = function(constraints, cb) {
-    publisher = new Broadcast(roomName);
-    publisher.publish(constraints, function(error, video) {
-      cb(error, video);
+  self.publish = function(constraints, userName) {
+    return new Promise(function(ok, fail) {
+      publisher = new Broadcast(userName || _.uuid(), roomName);
+      publisher.publish(constraints, function(error, video) {
+        if(error) return fail(error);
+        ok(video);
+      });
     });
   };
 

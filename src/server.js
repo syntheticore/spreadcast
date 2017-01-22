@@ -22,7 +22,7 @@ var Spreadcast = {
       var broadcast = broadcastsByPublisher[publisherId];
       if(!broadcast) return;
       delete broadcastsByPublisher[publisherId];
-      delete broadcast.room.broadcasts[publisherId];
+      delete broadcast.room.broadcasts[broadcast.name];
       _.each(broadcast.receivers, function(receiver) {
         receiver.socket.send({
           type: 'stop'
@@ -53,8 +53,7 @@ var Spreadcast = {
             roomsByClient[sessionId] = room;
             socket.send({
               type: 'joinedRoom',
-              streams: _.keys(room.broadcasts),
-              session: sessionId
+              streams: _.keys(room.broadcasts)
             });
             break;
 
@@ -64,6 +63,7 @@ var Spreadcast = {
 
             var broadcast = {
               room: room,
+              name: data.broadcastName,
               sender: {
                 id: sessionId,
                 socket: socket,
@@ -72,18 +72,20 @@ var Spreadcast = {
               receivers: {}
             };
 
-            room.broadcasts[sessionId] = broadcast;
+            room.broadcasts[data.broadcastName] = broadcast;
             broadcastsByPublisher[sessionId] = broadcast;
             _.each(room.clients, function(client) {
               if(client.socket.deviceId != socket.deviceId) client.socket.send({
                 type: 'addStream',
-                streamId: sessionId
+                name: data.broadcastName
               });
             });
             break;
 
           case 'receiveStream':
-            var broadcast = broadcastsByPublisher[data.broadcastName];
+            var room = rooms[data.roomName];
+            if(!room) return;
+            var broadcast = room.broadcasts[data.broadcastName];
             if(!broadcast) return;
 
             // Check if receiver is already publishing to the same room
@@ -131,7 +133,9 @@ var Spreadcast = {
             break;
 
           case 'answer':
-            var broadcast = broadcastsByPublisher[data.broadcastName || sessionId];
+            var room = rooms[data.roomName];
+            if(!room) return;
+            var broadcast = room.broadcasts[data.broadcastName];
             if(!broadcast) return;
             var receiver = broadcast.receivers[data.toReceiver];
             if(!receiver) return;
@@ -143,7 +147,9 @@ var Spreadcast = {
             break;
 
           case 'iceCandidate':
-            var broadcast = broadcastsByPublisher[data.broadcastName || sessionId];
+            var room = rooms[data.roomName];
+            if(!room) return;
+            var broadcast = room.broadcasts[data.broadcastName];
             if(!broadcast) return;
             var sock;
             if(broadcast.sender.id == data.to) {

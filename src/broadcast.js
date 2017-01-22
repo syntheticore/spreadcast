@@ -3,12 +3,11 @@ var _ = require('eakwell');
 
 var Socket = require('./socket.js');
 
-var Broadcast = function(roomName, keepVideos) {
+var Broadcast = function(broadcastName, roomName, keepVideos) {
   var self = this;
 
   Socket.init();
 
-  var broadcastName;
   var stream;
   var video;
   var senderPeer;
@@ -37,6 +36,7 @@ var Broadcast = function(roomName, keepVideos) {
           if(e.candidate) {
             socket.send({
               type: 'iceCandidate',
+              roomName: roomName,
               broadcastName: broadcastName,
               candidate: e.candidate,
               to: data.fromReceiver
@@ -51,6 +51,7 @@ var Broadcast = function(roomName, keepVideos) {
           socket.send({
             type: 'answer',
             answer: desc,
+            roomName: roomName,
             broadcastName: broadcastName,
             toReceiver: data.fromReceiver
           });
@@ -155,7 +156,8 @@ var Broadcast = function(roomName, keepVideos) {
     getMedia(constraints).then(function() {
       socket.send({
         type: 'publishStream',
-        roomName: roomName
+        roomName: roomName,
+        broadcastName: broadcastName
       });
       cb && cb(null, video);
     }).catch(function() {
@@ -163,9 +165,7 @@ var Broadcast = function(roomName, keepVideos) {
     });
   };
 
-  self.receive = function(_broadcastName, cb) {
-    broadcastName = _broadcastName;
-
+  self.receive = function(cb) {
     senderPeer = getPeerConnection('receiver');
 
     senderPeer.onaddstream = function(e) {
@@ -188,7 +188,7 @@ var Broadcast = function(roomName, keepVideos) {
         }, function() {
           socket.send({
             type: 'iceCandidate',
-            // roomName: roomName,
+            roomName: roomName,
             broadcastName: broadcastName,
             candidate: e.candidate,
             to: senderId
@@ -204,6 +204,7 @@ var Broadcast = function(roomName, keepVideos) {
       senderPeer.setLocalDescription(desc);
       socket.send({
         type: 'receiveStream',
+        roomName: roomName,
         broadcastName: broadcastName,
         offer: desc
       });

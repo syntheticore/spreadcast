@@ -240,6 +240,16 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
     };
     return stopRecord;
   };
+
+  self.snapshot = function() {
+    if(!video) return;
+    var canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    var context = canvas.getContext('2d');
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/png');
+  };
 };
 
 var getPeerStats = function(peer, cb) {

@@ -60,6 +60,10 @@ var Room = function(roomName) {
     if(publisher) publisher.stop();
   };
 
+  self.snapshot = function() {
+    return publisher && publisher.snapshot();
+  };
+
   self.stop = function() {
     self.unpublish();
     _.each(receivers, function(receiver) {

@@ -17,7 +17,9 @@ var Socket = function(channel) {
         channel: self.channel,
         sessionId: self.sessionId
       };
-      if(socket) socket.send(JSON.stringify(data));
+      try {
+        if(socket) socket.send(JSON.stringify(data));
+      } catch(e) {}
     });
   };
 

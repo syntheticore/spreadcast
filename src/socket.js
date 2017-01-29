@@ -22,7 +22,7 @@ var Socket = function(channel) {
   };
 
   self.close = function() {
-    _.remove(instances, self);
+    if(!_.remove(instances, self)) return;
     self.onclose && self.onclose();
     self.send({
       type: '_closeSocket'

@@ -53,9 +53,10 @@ Broadcast WebRTC streams to many receivers
       height: 240,
       frameRate: 24
     }
-  }, function(error, video) {
-    if(error) return console.error(error);
+  }).then(function(video) {
     document.body.appendChild(video);
+  }).catch(function(error) {
+    console.error(error);
   });
   ```
 

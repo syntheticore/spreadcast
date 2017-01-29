@@ -6,8 +6,6 @@ var Socket = require('./socket.js');
 var Broadcast = function(broadcastName, roomName, keepVideos) {
   var self = this;
 
-  Socket.init();
-
   var stream;
   var video;
   var senderPeer;
@@ -17,7 +15,7 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
   var senderIceCandidateCache = [];
   var shutdown = false;
 
-  var socket = new Socket.Socket();
+  var socket = new Socket();
 
   socket.onerror = function(error) {
     console.log('WebSocket Error', error);

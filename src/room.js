@@ -4,13 +4,12 @@ var Socket = require('./socket.js');
 var Broadcast = require('./broadcast.js');
 
 var Room = function(roomName) {
-  Socket.init();
   var self = this;
 
   var publisher;
   var receivers = {};
 
-  var socket = new Socket.Socket();
+  var socket = new Socket();
 
   socket.onerror = function(error) {
     console.log('WebSocket Error', error);
@@ -67,6 +66,7 @@ var Room = function(roomName) {
       receiver.stop();
     });
     receivers = {};
+    socket.close();
   };
 };
 

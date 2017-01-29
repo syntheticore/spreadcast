@@ -8,6 +8,8 @@ var shutdown = false;
 var Socket = function(channel) {
   var self = this;
 
+  init();
+
   self.channel = channel || 'spreadcast';
   self.sessionId = _.uuid();
 
@@ -29,6 +31,7 @@ var Socket = function(channel) {
     self.send({
       type: '_closeSocket'
     });
+    if(!instances.length) close();
   };
 
   instances.push(self);
@@ -43,6 +46,7 @@ var openSocket = function() {
   socketReady = new Promise(function(ok) {
     socket.onopen = ok;
   });
+  shutdown = false;
   socket.onclose = function() {
     if(shutdown) return;
     // Reconnect socket
@@ -87,11 +91,8 @@ var close = function() {
   shutdown = true;
   if(socket) socket.close();
   socket = null;
+  socketReady = null;
   instances = [];
 };
 
-module.exports = {
-  init: init,
-  close: close,
-  Socket: Socket
-};
+module.exports = Socket;

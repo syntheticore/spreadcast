@@ -89,8 +89,9 @@ var Room = function(roomName) {
     uploadChunks();
 
     publisher.onStop = function() {
-      stopRecord();
       uploading = false;
+      stopRecord && stopRecord();
+      stopRecord = null;
     };
 
     return publisher.onStop;

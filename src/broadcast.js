@@ -232,13 +232,13 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
     var buffersize = 0;
     mediaRecorder.ondataavailable = function(e) {
       if(e.data && e.data.size > 0) {
-        recordedBlobs.push(e.data);
-        buffersize += e.data.size;
-        if(buffersize > chunksize) {
+        if(buffersize + e.data.size > chunksize && recordedBlobs.length) {
           cb && cb(new Blob(recordedBlobs, {type: 'video/webm'}));
           recordedBlobs = [];
           buffersize = 0;
         }
+        recordedBlobs.push(e.data);
+        buffersize += e.data.size;
       }
     };
     mediaRecorder.start(10);

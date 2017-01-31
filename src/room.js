@@ -7,6 +7,8 @@ var Storage = require('./storage.js');
 var Room = function(roomName) {
   var self = this;
 
+  self.name = roomName;
+
   var publisher;
   var receivers = {};
 
@@ -78,7 +80,7 @@ var Room = function(roomName) {
     var uploadingFinished = false;
 
     var uploadChunks = function() {
-      if(uploadingFinished) return;
+      if(uploadingFinished) return cb(null);
       storage.retrieve(recordId).then(function(chunk) {
         return cb(chunk);
       }).then(uploadChunks).catch(function() {

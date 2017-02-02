@@ -2,7 +2,6 @@ var _ = require('eakwell');
 
 var Socket = require('./socket.js');
 var Broadcast = require('./broadcast.js');
-var Storage = require('./storage.js');
 
 var Room = function(roomName) {
   var self = this;
@@ -13,7 +12,6 @@ var Room = function(roomName) {
   var receivers = {};
 
   var socket = new Socket();
-  var storage = new Storage();
 
   socket.onerror = function(error) {
     console.log('WebSocket Error', error);
@@ -68,35 +66,7 @@ var Room = function(roomName) {
 
   self.record = function(cb) {
     if(!publisher) throw 'Not publishing';
-
-    // Record local stream to disk
-    var recordId = _.uuid();
-    var stopRecord = publisher.record(function(chunk) {
-      storage.store(chunk, recordId);
-    }, 50000);
-
-    // Start uploading chunks to the server
-    var uploading = true;
-    var uploadingFinished = false;
-
-    var uploadChunks = function() {
-      if(uploadingFinished) return cb(null);
-      storage.retrieve(recordId).then(function(chunk) {
-        return cb(chunk);
-      }).then(uploadChunks).catch(function() {
-        if(!uploading) uploadingFinished = true;
-        return _.delay(1000).then(uploadChunks);
-      });
-    };
-    uploadChunks();
-
-    publisher.onStop = function() {
-      uploading = false;
-      stopRecord && stopRecord();
-      stopRecord = null;
-    };
-
-    return publisher.onStop;
+    return publisher.record(cb);
   };
 
   self.snapshot = function() {

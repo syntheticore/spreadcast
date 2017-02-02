@@ -2,6 +2,7 @@ var freeice = require('freeice');
 var _ = require('eakwell');
 
 var Socket = require('./socket.js');
+var Storage = require('./storage.js');
 
 var Broadcast = function(broadcastName, roomName, keepVideos) {
   var self = this;
@@ -14,6 +15,7 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
   var receiverPeers = {};
   var senderIceCandidateCache = [];
   var shutdown = false;
+  var stopRecord = null;
 
   var socket = new Socket();
 
@@ -151,7 +153,31 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
     video = null;
     shutdown = true;
     socket.close();
-    if(self.onStop) self.onStop();
+    self.onStop && self.onStop();
+    stopRecord && stopRecord();
+  };
+
+  var record = function(cb, chunksize) {
+    chunksize = chunksize || Infinity;
+    var recordedBlobs = [];
+    var mediaRecorder = new MediaRecorder(stream);
+    var buffersize = 0;
+    mediaRecorder.ondataavailable = function(e) {
+      if(e.data && e.data.size > 0) {
+        if(buffersize + e.data.size > chunksize && recordedBlobs.length) {
+          cb && cb(new Blob(recordedBlobs, {type: 'video/webm'}));
+          recordedBlobs = [];
+          buffersize = 0;
+        }
+        recordedBlobs.push(e.data);
+        buffersize += e.data.size;
+      }
+    };
+    mediaRecorder.start(10);
+    return function() {
+      mediaRecorder.stop();
+      cb && recordedBlobs.length && cb(new Blob(recordedBlobs, {type: 'video/webm'}));
+    };
   };
   
   self.publish = function(constraints, cb) {
@@ -225,27 +251,37 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
     stop();
   };
 
-  self.record = function(cb, chunksize) {
-    chunksize = chunksize || Infinity;
-    var recordedBlobs = [];
-    var mediaRecorder = new MediaRecorder(stream);
-    var buffersize = 0;
-    mediaRecorder.ondataavailable = function(e) {
-      if(e.data && e.data.size > 0) {
-        if(buffersize + e.data.size > chunksize && recordedBlobs.length) {
-          cb && cb(new Blob(recordedBlobs, {type: 'video/webm'}));
-          recordedBlobs = [];
-          buffersize = 0;
-        }
-        recordedBlobs.push(e.data);
-        buffersize += e.data.size;
-      }
+  self.record = function(cb) {
+    // Record stream to disk
+    var recordId = _.uuid();
+    var storage = new Storage();
+    var stopRec = record(function(chunk) {
+      storage.store(chunk, recordId);
+    }, 50000);
+
+    // Start uploading chunks to the server
+    var uploading = true;
+    var uploadingFinished = false;
+
+    var uploadChunks = function() {
+      if(uploadingFinished) return cb(null);
+      storage.retrieve(recordId).then(function(chunk) {
+        return cb(chunk);
+      }).then(uploadChunks).catch(function() {
+        if(!uploading) uploadingFinished = true;
+        return _.delay(1000).then(uploadChunks);
+      });
     };
-    mediaRecorder.start(10);
-    return function() {
-      mediaRecorder.stop();
-      cb && recordedBlobs.length && cb(new Blob(recordedBlobs, {type: 'video/webm'}));
+    uploadChunks();
+
+    // Recording shall end automatically when the broadcast stops
+    stopRecord = function() {
+      uploading = false;
+      stopRec && stopRec();
+      stopRec = null;
     };
+
+    return stopRecord;
   };
 
   self.snapshot = function() {

@@ -7,10 +7,10 @@ var Storage = require('./storage.js');
 var Broadcast = function(broadcastName, roomName, keepVideos) {
   var self = this;
 
-  var stream;
+  var stream = _.deferred();
   var video;
   var senderPeer;
-  var senderId;
+  var senderId = _.deferred();
 
   var receiverPeers = {};
   var senderIceCandidateCache = [];
@@ -32,6 +32,7 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
       case 'offer':
         console.log("Got offer from receiver " + data.fromReceiver);
         var peer = getPeerConnection('publisher');
+        receiverPeers[data.fromReceiver] = peer;
         peer.onicecandidate = function(e) {
           if(e.candidate) {
             socket.send({
@@ -43,9 +44,7 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
             });
           }
         };
-        _.waitFor(function() {
-          return stream;
-        }, function() {
+        stream.then(function(stream) {
           peer.addStream(stream);
           // stream.getTracks().forEach(track => peer.addTrack(track, stream));
           peer.setRemoteDescription(data.offer);
@@ -60,19 +59,18 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
             });
           });
         });
-        receiverPeers[data.fromReceiver] = peer;
         break;
       
       case 'answer':
-        senderId = data.fromSender;
-        console.log("Got answer from sender " + senderId);
+        senderId.resolve(data.fromSender);
+        console.log("Got answer from sender " + data.fromSender);
         senderPeer.setRemoteDescription(data.answer);
         break;
       
       case 'iceCandidate':
         console.log("Got iceCandidate from " + data.from);
-        var peer = (data.from == senderId ? senderPeer : receiverPeers[data.from]);
-        if(peer) peer.addIceCandidate(data.candidate);
+        var peer = receiverPeers[data.from] || senderPeer;
+        peer.addIceCandidate(data.candidate);
         break;
 
       case 'stop':
@@ -108,10 +106,10 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
         frameRate: 24
       }}, constraints || {})
     ).then(function(_stream) {
-      stream = _stream;
       video = video || createVideoElement();
       video.muted = true;
-      video.srcObject = stream;
+      video.srcObject = _stream;
+      stream.resolve(_stream);
       return new Promise(function(ok, fail) {
         video.onplaying = ok;
       });
@@ -127,19 +125,23 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
   };
 
   var terminate = function() {
-    if(senderPeer) senderPeer.close();
+    // Close peer connections
     _.each(receiverPeers, function(peer) {
       peer.close();
     });
-    if(stream && !senderPeer) {
-      _.each(stream.getTracks(), function(track) {
-        track.stop();
+    if(senderPeer) senderPeer.close();
+    // Close device stream if we are publishing
+    if(!senderPeer) {
+      stream.then(function(stream) {
+        _.each(stream.getTracks(), function(track) {
+          track.stop();
+        });
       });
     }
     receiverPeers = {};
     senderPeer = null;
-    senderId = null;
-    stream = null;
+    senderId = _.deferred();
+    stream = _.deferred();
   };
 
   var reconnect = function() {
@@ -159,24 +161,29 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
 
   var record = function(cb, chunksize) {
     chunksize = chunksize || Infinity;
-    var recordedBlobs = [];
-    var mediaRecorder = new MediaRecorder(stream);
     var buffersize = 0;
-    mediaRecorder.ondataavailable = function(e) {
-      if(e.data && e.data.size > 0) {
-        if(buffersize + e.data.size > chunksize && recordedBlobs.length) {
-          cb && cb(new Blob(recordedBlobs, {type: 'video/webm'}));
-          recordedBlobs = [];
-          buffersize = 0;
+    var recordedBlobs = [];
+    var mediaRecorder = stream.then(function(stream) {
+      var mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = function(e) {
+        if(e.data && e.data.size > 0) {
+          if(buffersize + e.data.size > chunksize && recordedBlobs.length) {
+            cb && cb(new Blob(recordedBlobs, {type: 'video/webm'}));
+            recordedBlobs = [];
+            buffersize = 0;
+          }
+          recordedBlobs.push(e.data);
+          buffersize += e.data.size;
         }
-        recordedBlobs.push(e.data);
-        buffersize += e.data.size;
-      }
-    };
-    mediaRecorder.start(10);
+      };
+      mediaRecorder.start(10);
+      return mediaRecorder;
+    });
     return function() {
-      mediaRecorder.stop();
-      cb && recordedBlobs.length && cb(new Blob(recordedBlobs, {type: 'video/webm'}));
+      mediaRecorder.then(function(mediaRecorder) {
+        mediaRecorder.stop();
+        cb && recordedBlobs.length && cb(new Blob(recordedBlobs, {type: 'video/webm'}));
+      });
     };
   };
   
@@ -197,9 +204,9 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
     senderPeer = getPeerConnection('receiver');
 
     senderPeer.onaddstream = function(e) {
-      stream = e.stream;
+      stream.resolve(e.stream);
       video = video || createVideoElement();
-      video.srcObject = stream;
+      video.srcObject = e.stream;
       cb && cb(null, video);
     };
 
@@ -211,9 +218,7 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
 
     senderPeer.onicecandidate = function(e) {
       if(e.candidate) {
-        _.waitFor(function() {
-          return senderId;
-        }, function() {
+        senderId.then(function(senderId) {
           socket.send({
             type: 'iceCandidate',
             roomName: roomName,

@@ -10,6 +10,7 @@ var Room = function(roomName) {
 
   var publisher;
   var receivers = {};
+  var audioMix;
 
   var socket = new Socket();
 
@@ -46,6 +47,7 @@ var Room = function(roomName) {
       };
     });
     receivers[streamId] = receiver;
+    audioMix && audioMix.addReceiver(receiver);
   };
 
   self.publish = function(constraints, userName) {
@@ -69,11 +71,37 @@ var Room = function(roomName) {
     return publisher.record(cb);
   };
 
+  self.mixAudio = function() {
+    var context = new AudioContext();
+    var mixer = context.createMediaStreamDestination();
+    var addReceiver = function(receiver) {
+      _.waitFor(receiver.getStream, function() {
+        var stream = receiver.getStream();
+        var source = context.createMediaStreamSource(stream);
+        source.connect(mixer);
+      });
+    };
+    _.each(receivers, addReceiver);
+    var mixId = _.uuid();
+    var broadcast = new Broadcast(mixId, roomName);
+    broadcast.publishStream(mixer.stream);
+    audioMix = {
+      id: mixId,
+      broadcast: broadcast,
+      addReceiver: addReceiver,
+      stop: function() {
+        this.broadcast.stop();
+        audioMix = null;
+      }
+    };
+  };
+
   self.snapshot = function() {
     return publisher && publisher.snapshot();
   };
 
   self.stop = function() {
+    audioMix && audioMix.stop();
     self.unpublish();
     _.each(receivers, function(receiver) {
       receiver.stop();

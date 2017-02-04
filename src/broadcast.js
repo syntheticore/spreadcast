@@ -173,7 +173,7 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
         buffersize += e.data.size;
       }
     };
-    mediaRecorder.start(10);
+    mediaRecorder.start(100);
     return function() {
       mediaRecorder.stop();
       cb && recordedBlobs.length && cb(new Blob(recordedBlobs, {type: 'video/webm'}));
@@ -190,6 +190,15 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
       cb && cb(null, video);
     }).catch(function() {
       cb && cb('Could not initialize video stream');
+    });
+  };
+
+  self.publishStream = function(_stream) {
+    stream = _stream;
+    socket.send({
+      type: 'publishStream',
+      roomName: roomName,
+      broadcastName: broadcastName
     });
   };
 
@@ -265,9 +274,7 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
 
     var uploadChunks = function() {
       if(uploadingFinished) return cb(null);
-      storage.retrieve(recordId).then(function(chunk) {
-        return cb(chunk);
-      }).then(uploadChunks).catch(function() {
+      storage.retrieve(recordId).then(cb).then(uploadChunks).catch(function() {
         if(!uploading) uploadingFinished = true;
         return _.delay(1000).then(uploadChunks);
       });
@@ -292,6 +299,10 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
     var context = canvas.getContext('2d');
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
     return canvas.toDataURL('image/png');
+  };
+
+  self.getStream = function() {
+    return stream;
   };
 };
 

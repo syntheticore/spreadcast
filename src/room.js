@@ -8,7 +8,7 @@ var Room = function(roomName) {
 
   self.name = roomName;
 
-  var publisher;
+  var publishers = {};
   var receivers = {};
 
   var socket = new Socket();
@@ -51,22 +51,33 @@ var Room = function(roomName) {
   self.publish = function(constraints, userName) {
     return new Promise(function(ok, fail) {
       if(publisher) return fail('Publishing already');
-      publisher = new Broadcast(userName || _.uuid(), roomName);
+      userName = userName || _.uuid();
+      var publisher = new Broadcast(userName, roomName);
       publisher.publish(constraints, function(error, video) {
-        if(error) return fail(error);
-        ok(video);
+        if(error) {
+          publisher = null;
+          return fail(error);
+        }
+        ok(video, function() {
+          publisher.stop();
+          delete publishers[userName];
+        });
       });
+      publishers[userName] = publisher;
     });
   };
 
   self.unpublish = function() {
-    if(publisher) publisher.stop();
-    publisher = null;
+    _.each(publishers, function(publisher) {
+      publisher.stop();
+    });
+    publishers = {};
   };
 
-  self.record = function(cb) {
-    if(!publisher) throw 'Not publishing';
-    return publisher.record(cb);
+  self.record = function(cb, index) {
+    var keys = _.keys(publishers);
+    if(!keys.length) throw 'Not publishing';
+    return publishers[keys[index || 0]].record(cb);
   };
 
   self.snapshot = function() {

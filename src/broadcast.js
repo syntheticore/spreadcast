@@ -106,6 +106,7 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
         frameRate: 24
       }}, constraints || {})
     ).then(function(_stream) {
+      // if(stream.getVideoTracks().length > 0)
       video = video || createVideoElement();
       video.muted = true;
       video.srcObject = _stream;
@@ -176,7 +177,7 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
           buffersize += e.data.size;
         }
       };
-      mediaRecorder.start(10);
+      mediaRecorder.start(100);
       return mediaRecorder;
     });
     return function() {
@@ -262,7 +263,7 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
     var storage = new Storage();
     var stopRec = record(function(chunk) {
       storage.store(chunk, recordId);
-    }, 50000);
+    }, 500000);
 
     // Start uploading chunks to the server
     var uploading = true;

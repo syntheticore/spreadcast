@@ -4,8 +4,26 @@ var _ = require('eakwell');
 var Socket = require('./socket.js');
 var Storage = require('./storage.js');
 
-var Broadcast = function(broadcastName, roomName, keepVideos) {
-  var self = this;
+var Broadcast = function(options) {
+  var self = this,
+    broadcastName,
+    roomName,
+    keepVideos,
+    url;
+
+  switch(typeof options) {
+    case 'object':
+      broadcastName = options.name;
+      roomName = options.roomName;
+      keepVideos = options.keepVideos;
+      url = options.url;
+      break;
+    case 'string':
+      broadcastName = arguments[0];
+      roomName = arguments[1];
+      keepVideos = arguments[2];
+      break;
+  }
 
   var stream = _.deferred();
   var video;
@@ -17,7 +35,7 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
   var shutdown = false;
   var stopRecord = null;
 
-  var socket = new Socket();
+  var socket = new Socket({url: url});
 
   socket.onerror = function(error) {
     console.log('WebSocket Error', error);

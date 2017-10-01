@@ -1,20 +1,32 @@
 var _ = require('eakwell');
 
-var socket;
-var socketReady;
-var instances = [];
-var shutdown = false;
+var sockets = {};
 
-var Socket = function(channel) {
+var Socket = function(options) {
+  var channel, url;
+
+  switch(typeof options) {
+    case 'object':
+      channel = options.channel;
+      url = options.url;
+      break;
+    case 'string':
+      channel = options;
+      break;
+  }
+
+  channel = channel || 'spreadcast';
+  url = url || location.origin.replace(/^http/, 'ws');
+
   var self = this;
 
-  init();
+  var socket = init(url);
 
   self.channel = channel || 'spreadcast';
   self.sessionId = _.uuid();
 
   self.send = function(data) {
-    socketReady.then(function() {
+    socket._ready.then(function() {
       data._socket = {
         channel: self.channel,
         sessionId: self.sessionId
@@ -26,29 +38,30 @@ var Socket = function(channel) {
   };
 
   self.close = function() {
-    if(!_.remove(instances, self)) return;
+    if(!_.remove(socket._instances, self)) return;
     self.onclose && self.onclose();
     self.send({
       type: '_closeSocket'
     });
-    if(!instances.length) close();
+    if(!socket._instances.length) close(socket);
   };
 
-  instances.push(self);
+  socket._instances.push(self);
 
   self.send({
     type: '_initSocket'
   });
 };
 
-var openSocket = function() {
-  socket = new WebSocket(location.origin.replace(/^http/, 'ws'));
-  socketReady = new Promise(function(ok) {
+var openSocket = function(url) {
+  var socket = sockets[url] = new WebSocket(url);
+  socket._url = url;
+  socket._ready = new Promise(function(ok) {
     socket.onopen = ok;
   });
-  shutdown = false;
-  socket.onclose = function() {
-    if(shutdown) return;
+  socket._shutdown = false;
+  socket.onclose = function(e) {
+    if(socket._shutdown) return;
     // Reconnect socket
     _.defer(function() {
       openSocket();
@@ -57,16 +70,17 @@ var openSocket = function() {
       });
     }, 1000);
   };
-}
+  return socket;
+};
 
-var init = function() {
-  if(socket) return;
+var init = function(url) {
+  if (sockets[url]) return sockets[url];
 
-  openSocket();
-
+  var socket = openSocket(url);
+  socket._instances = [];
   socket.onmessage = function(e) {
     var data = JSON.parse(e.data);
-    _.each(instances, function(sock) {
+    _.each(socket._instances, function(sock) {
       if(data._socket.channel == sock.channel && data._socket.sessionId == sock.sessionId && sock.onmessage) {
         sock.onmessage(data);
         return true;
@@ -75,24 +89,24 @@ var init = function() {
   };
 
   socket.onerror = function(e) {
-    _.each(instances, function(sock) {
+    _.each(socket._instances, function(sock) {
       sock.onerror && sock.onerror(e);
     });
   };
 
   socket.onclose = function() {
-    _.each(instances, function(sock) {
+    _.each(socket._instances, function(sock) {
       sock.onclose && sock.onclose();
     });
   };
+
+  return socket;
 };
 
-var close = function() {
-  shutdown = true;
-  if(socket) socket.close();
-  socket = null;
-  socketReady = null;
-  instances = [];
+var close = function(socket) {
+  socket._shutdown = true;
+  socket.close();
+  delete sockets[socket._url];
 };
 
 module.exports = Socket;

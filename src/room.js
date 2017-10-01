@@ -3,15 +3,26 @@ var _ = require('eakwell');
 var Socket = require('./socket.js');
 var Broadcast = require('./broadcast.js');
 
-var Room = function(roomName) {
-  var self = this;
+var Room = function(options) {
+  var self = this, roomName, url;
+
+  switch(typeof options) {
+    case 'object':
+      roomName = options.name;
+      url = options.url;
+      break;
+    case 'string':
+      roomName = options;
+      break;
+  }
 
   self.name = roomName;
+  self.url = url;
 
   var publishers = {};
   var receivers = {};
 
-  var socket = new Socket();
+  var socket = new Socket({url: url});
 
   socket.onerror = function(error) {
     console.log('WebSocket Error', error);
@@ -37,7 +48,12 @@ var Room = function(roomName) {
   });
 
   var receive = function(streamId) {
-    var receiver = new Broadcast(streamId, roomName, !!self.onRemoveStream);
+    var receiver = new Broadcast({
+      name: streamId,
+      roomName: roomName,
+      keepVideos: !!self.onRemoveStream,
+      url: url
+    });
     receiver.receive(function(error, video) {
       if(error) return console.error(error);
       self.onAddStream(video, streamId);
@@ -52,7 +68,11 @@ var Room = function(roomName) {
     return new Promise(function(ok, fail) {
       if(publisher) return fail('Publishing already');
       userName = userName || _.uuid();
-      var publisher = new Broadcast(userName, roomName);
+      var publisher = new Broadcast({
+        name: userName || _.uuid(),
+        roomName: roomName,
+        url: url
+      });
       publisher.publish(constraints, function(error, video) {
         if(error) {
           publisher = null;

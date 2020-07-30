@@ -31,6 +31,24 @@ var Spreadcast = {
       });
     };
 
+    var joinRoom = function(data, socket, sessionId) {
+      var room = rooms[data.roomName];
+      if(!room) {
+        room = {
+          name: data.roomName,
+          clients: {},
+          broadcasts: {}
+        };
+        rooms[data.roomName] = room;
+      }
+      room.clients[sessionId] = {
+        id: sessionId,
+        socket: socket
+      };
+      roomsByClient[sessionId] = room;
+      return room;
+    };
+
     wss.onConnection = function(socket) {
       var sessionId = _.uuid()
 
@@ -38,20 +56,7 @@ var Spreadcast = {
         switch(data.type) {
 
           case 'join':
-            var room = rooms[data.roomName];
-            if(!room) {
-              room = {
-                name: data.roomName,
-                clients: {},
-                broadcasts: {}
-              };
-              rooms[data.roomName] = room;
-            }
-            room.clients[sessionId] = {
-              id: sessionId,
-              socket: socket
-            };
-            roomsByClient[sessionId] = room;
+            var room = joinRoom(data, socket, sessionId);
             socket.send({
               type: 'joinedRoom',
               streams: _.keys(room.broadcasts)
@@ -59,8 +64,10 @@ var Spreadcast = {
             break;
 
           case 'publishStream':
-            var room = rooms[data.roomName];
-            if(!room) return;
+            // var room = rooms[data.roomName];
+            // if(!room) return;
+
+            var room = joinRoom(data, socket, sessionId);
 
             var broadcast = {
               room: room,
@@ -84,8 +91,10 @@ var Spreadcast = {
             break;
 
           case 'receiveStream':
-            var room = rooms[data.roomName];
-            if(!room) return;
+            // var room = rooms[data.roomName];
+            // if(!room) return;
+            var room = joinRoom(data, socket, sessionId);
+
             var broadcast = room.broadcasts[data.broadcastName];
             if(!broadcast) return;
 
@@ -208,11 +217,5 @@ var Spreadcast = {
     };
   }
 };
-
-if(typeof window !== 'undefined') {
-  _.each(require('webrtc-adapter').browserShim, function(shim) {
-    shim();
-  });
-}
 
 module.exports = Spreadcast;

@@ -42,7 +42,7 @@ var Socket = function(channel) {
 };
 
 var openSocket = function() {
-  socket = new WebSocket(location.origin.replace(/^http/, 'ws'));
+  socket = new WebSocket(location.origin.replace(/^http/, 'ws') + '/spreadcast');
   socketReady = new Promise(function(ok) {
     socket.onopen = ok;
   });

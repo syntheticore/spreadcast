@@ -45,17 +45,22 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
           }
         };
         stream.then(function(stream) {
+          // stream.getTracks().forEach(function(track) {
+          //   peer.addTrack(track, stream);
+          // });
           peer.addStream(stream);
           // stream.getTracks().forEach(track => peer.addTrack(track, stream));
-          peer.setRemoteDescription(data.offer);
-          peer.createAnswer().then(function(desc) {
-            peer.setLocalDescription(desc);
-            socket.send({
-              type: 'answer',
-              answer: desc,
-              roomName: roomName,
-              broadcastName: broadcastName,
-              toReceiver: data.fromReceiver
+          peer.setRemoteDescription(data.offer).then(function() {
+            peer.createAnswer().then(function(desc) {
+              peer.setLocalDescription(desc).then(function() {
+                socket.send({
+                  type: 'answer',
+                  answer: peer.localDescription,
+                  roomName: roomName,
+                  broadcastName: broadcastName,
+                  toReceiver: data.fromReceiver
+                });
+              });
             });
           });
         });
@@ -113,6 +118,7 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
       stream.resolve(_stream);
       return new Promise(function(ok, fail) {
         video.onplaying = ok;
+        video.play();
       });
     });
   };
@@ -155,8 +161,10 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
     if(video && video.parentElement && !keepVideos) video.parentElement.removeChild(video);
     video = null;
     shutdown = true;
-    socket.close();
+    socket && socket.close();
+    socket = null;
     self.onStop && self.onStop();
+    self.onStop = null;
     stopRecord && stopRecord();
   };
 
@@ -189,6 +197,7 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
   };
   
   self.publish = function(constraints, cb) {
+    console.log(constraints);
     getMedia(constraints).then(function() {
       socket.send({
         type: 'publishStream',
@@ -208,13 +217,22 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
       stream.resolve(e.stream);
       video = video || createVideoElement();
       video.srcObject = e.stream;
+      video.play().catch(function(){});
       cb && cb(null, video);
     };
 
     // senderPeer.ontrack = function(e) {
-    //   remoteVideo = createVideoElement();
-    //   remoteVideo.srcObject = e.streams[0];
-    //   remoteStream = e.streams[0];
+    //   // remoteVideo = createVideoElement();
+    //   // remoteVideo.srcObject = e.streams[0];
+    //   // remoteStream = e.streams[0];
+    //   console.log('ontrack called');
+    //   console.log('ontrack', e.streams)
+    //   if(!cb) return;
+    //   stream.resolve(e.streams[0]);
+    //   video = video || createVideoElement();
+    //   video.srcObject = e.streams[0];
+    //   cb(null, video);
+    //   cb = undefined;
     // };
 
     senderPeer.onicecandidate = function(e) {
@@ -235,22 +253,23 @@ var Broadcast = function(broadcastName, roomName, keepVideos) {
       offerToReceiveAudio: 1,
       offerToReceiveVideo: 1
     }).then(function(desc) {
-      senderPeer.setLocalDescription(desc);
-      socket.send({
-        type: 'receiveStream',
-        roomName: roomName,
-        broadcastName: broadcastName,
-        offer: desc
+      senderPeer.setLocalDescription(desc).then(function() {
+        socket.send({
+          type: 'receiveStream',
+          roomName: roomName,
+          broadcastName: broadcastName,
+          offer: senderPeer.localDescription
+        });
       });
     }).catch(function() {
-      cb && cb('Unable to create offer');
+      cb('Unable to create offer');
     });
   };
 
   self.stop = function() {
     // Close the entire broadcast if we are the publisher
     if(!senderPeer) {
-      socket.send({
+      socket && socket.send({
         type: 'closeBroadcast'
       });
     }
